@@ -1,0 +1,14 @@
+version: 1.5.0
+locales:
+  en-US: |
+    • Added a watched folder mode for release notes.
+    • New diff view with side-by-side comparison.
+    • Small performance improvements.
+  zh-Hans: |
+    • 新增发布说明的监听文件夹模式。
+    • 新增对比视图：本地与 App Store Connect 并排展示。
+    • 小幅性能优化。
+  ja: |
+    • リリースノートのフォルダ監視モードを追加しました。
+    • 並列比較ビューを追加しました。
+    • 軽微なパフォーマンス改善。

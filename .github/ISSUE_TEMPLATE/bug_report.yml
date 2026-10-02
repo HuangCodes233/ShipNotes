@@ -1,0 +1,53 @@
+name: Bug report
+description: Report a reproducible problem with sanitized examples.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For security problems, follow SECURITY.md. Do not post API keys, private keys, account data, or private screenshots.
+  - type: input
+    id: commit
+    attributes:
+      label: Git commit or version
+      description: Run git rev-parse --short HEAD in your checkout.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: macOS and Xcode versions
+      placeholder: "macOS version; Xcode version; build/run method"
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Connection mode
+      options:
+        - Sample data only
+        - Live App Store Connect
+        - Live Apple Ads
+        - AI configured
+        - Multiple live services
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include a minimal sanitized input if parsing or scanning is involved.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and sanitized diagnostics
+    validations:
+      required: true
