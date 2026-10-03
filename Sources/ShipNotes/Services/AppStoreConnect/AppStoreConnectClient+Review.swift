@@ -26,7 +26,8 @@ extension AppStoreConnectClient {
             )
         } catch let error as AppStoreConnectClientError {
             guard case .requestFailed(statusCode: 409, _) = error,
-                  let existing = try? await reusableOpenSubmission(appId: appId, platform: platform) else {
+                let existing = try? await reusableOpenSubmission(appId: appId, platform: platform)
+            else {
                 throw error
             }
             Logger.network.info("Reusing open review submission after 409.")
@@ -49,14 +50,15 @@ extension AppStoreConnectClient {
                 URLQueryItem(name: "filter[platform]", value: platform),
                 URLQueryItem(name: "filter[state]", value: Self.reusableReviewSubmissionStates.joined(separator: ",")),
                 URLQueryItem(name: "fields[reviewSubmissions]", value: "state,platform,submittedDate"),
-                URLQueryItem(name: "limit", value: "20")
+                URLQueryItem(name: "limit", value: "20"),
             ],
             paged: false
         )
         // Filter again locally: the answer decides where this version goes.
         let candidates = submissions.filter { resource in
             guard let state = resource.attributes?.state,
-                  Self.reusableReviewSubmissionStates.contains(state) else { return false }
+                Self.reusableReviewSubmissionStates.contains(state)
+            else { return false }
             return resource.attributes?.platform == nil || resource.attributes?.platform == platform
         }
         for state in Self.reusableReviewSubmissionStates {
@@ -89,7 +91,8 @@ extension AppStoreConnectClient {
             )
         } catch let error as AppStoreConnectClientError {
             guard case .requestFailed(statusCode: 409, _) = error,
-                  (try? await reviewSubmission(submissionId, containsVersion: versionId)) == true else {
+                (try? await reviewSubmission(submissionId, containsVersion: versionId)) == true
+            else {
                 throw error
             }
             Logger.network.info("Review submission item already attached (409); continuing to submit.")
@@ -112,7 +115,7 @@ extension AppStoreConnectClient {
             path: "reviewSubmissions/\(submissionId)/items",
             queryItems: [
                 URLQueryItem(name: "include", value: "appStoreVersion"),
-                URLQueryItem(name: "limit", value: "50")
+                URLQueryItem(name: "limit", value: "50"),
             ]
         )
         return items.contains { $0.relationships?.appStoreVersion?.data?.id == versionId }

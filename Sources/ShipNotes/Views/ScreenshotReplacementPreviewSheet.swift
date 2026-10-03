@@ -14,12 +14,14 @@ struct ScreenshotReplacementPreviewSheet: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L("Screenshot Replacement Preview"))
                         .font(.title3.bold())
-                    Text(L(
-                        "Will replace %1$d screenshot set(s). For each set, delete old screenshots and confirm it is empty before uploading new ones (%2$d remote, %3$d local). If upload fails, the set may be empty or incomplete.",
-                        plan.slotCount,
-                        plan.remoteDeleteCount,
-                        plan.localUploadCount
-                    ))
+                    Text(
+                        L(
+                            "Will replace %1$d screenshot set(s). For each set, delete old screenshots and confirm it is empty before uploading new ones (%2$d remote, %3$d local). If upload fails, the set may be empty or incomplete.",
+                            plan.slotCount,
+                            plan.remoteDeleteCount,
+                            plan.localUploadCount
+                        )
+                    )
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -173,9 +175,11 @@ struct ScreenshotReplacementTileStrip<Content: View>: View {
     }
 
     var body: some View {
-        LazyVGrid(columns: [
-            GridItem(.adaptive(minimum: 104, maximum: 104), spacing: 8, alignment: .top)
-        ], alignment: .leading, spacing: 8) {
+        LazyVGrid(
+            columns: [
+                GridItem(.adaptive(minimum: 104, maximum: 104), spacing: 8, alignment: .top)
+            ], alignment: .leading, spacing: 8
+        ) {
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)

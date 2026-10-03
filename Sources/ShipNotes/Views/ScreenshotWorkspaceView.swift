@@ -1,5 +1,5 @@
-import SwiftUI
 import ImageIO
+import SwiftUI
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -66,16 +66,20 @@ struct ScreenshotWorkspaceView: View {
             guard let url = urls.first else { return false }
             state.loadScreenshotsFolder(url)
             return true
-        } isTargeted: { isDropTargeted = $0 }
+        } isTargeted: {
+            isDropTargeted = $0
+        }
         .dropZoneOverlay(isTargeted: isDropTargeted)
-        .sheet(isPresented: Binding(
-            get: { state.pendingScreenshotReplacement != nil },
-            set: { presented in
-                if !presented {
-                    state.dismissScreenshotReplacementPreview()
+        .sheet(
+            isPresented: Binding(
+                get: { state.pendingScreenshotReplacement != nil },
+                set: { presented in
+                    if !presented {
+                        state.dismissScreenshotReplacementPreview()
+                    }
                 }
-            }
-        )) {
+            )
+        ) {
             if let plan = state.pendingScreenshotReplacement {
                 ScreenshotReplacementPreviewSheet(plan: plan)
             }
@@ -132,7 +136,10 @@ struct ScreenshotWorkspaceView: View {
             Label(L("No screenshots imported"), systemImage: "photo.stack")
         } description: {
             Text(L("Drag a screenshot folder here"))
-            Text(L("Choose a folder that contains App Store screenshots. Nested locale folders like en-US or zh-Hans are supported."))
+            Text(
+                L(
+                    "Choose a folder that contains App Store screenshots. Nested locale folders like en-US or zh-Hans are supported."
+                ))
         } actions: {
             Button {
                 state.presentScreenshotPicker()
@@ -153,12 +160,20 @@ struct ScreenshotWorkspaceView: View {
         // on narrow windows; they scroll instead.
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                SummaryMetric(title: L("Total"), value: "\(scan.assets.count)", systemImage: "photo.stack", color: .blue)
-                SummaryMetric(title: L("Ready"), value: "\(scan.readyCount)", systemImage: "checkmark.circle.fill", color: .green)
-                SummaryMetric(title: L("Blocking"), value: "\(blockingIssueCount)", systemImage: "xmark.octagon.fill", color: blockingIssueCount == 0 ? .green : .red)
-                SummaryMetric(title: L("Warnings"), value: "\(warningCount)", systemImage: "exclamationmark.triangle.fill", color: warningCount == 0 ? .green : .orange)
+                SummaryMetric(
+                    title: L("Total"), value: "\(scan.assets.count)", systemImage: "photo.stack", color: .blue)
+                SummaryMetric(
+                    title: L("Ready"), value: "\(scan.readyCount)", systemImage: "checkmark.circle.fill", color: .green)
+                SummaryMetric(
+                    title: L("Blocking"), value: "\(blockingIssueCount)", systemImage: "xmark.octagon.fill",
+                    color: blockingIssueCount == 0 ? .green : .red)
+                SummaryMetric(
+                    title: L("Warnings"), value: "\(warningCount)", systemImage: "exclamationmark.triangle.fill",
+                    color: warningCount == 0 ? .green : .orange)
                 if scan.skippedCount > 0 {
-                    SummaryMetric(title: L("Skipped"), value: "\(scan.skippedCount)", systemImage: "questionmark.circle.fill", color: .secondary)
+                    SummaryMetric(
+                        title: L("Skipped"), value: "\(scan.skippedCount)", systemImage: "questionmark.circle.fill",
+                        color: .secondary)
                 }
             }
         }
@@ -313,16 +328,21 @@ struct ScreenshotWorkspaceView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(L("iPad Screenshots"))
                     .font(.caption.weight(.semibold))
-                Text(state.screenshotIPadRequirementSummary + " " + state.selectedScreenshotIPadSupportDetection.summary)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                Text(
+                    state.screenshotIPadRequirementSummary + " " + state.selectedScreenshotIPadSupportDetection.summary
+                )
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
             }
             Spacer(minLength: 12)
-            Picker("", selection: Binding(
-                get: { state.screenshotIPadSupportOverride },
-                set: { state.setScreenshotIPadSupportOverride($0) }
-            )) {
+            Picker(
+                "",
+                selection: Binding(
+                    get: { state.screenshotIPadSupportOverride },
+                    set: { state.setScreenshotIPadSupportOverride($0) }
+                )
+            ) {
                 ForEach(ScreenshotIPadSupportOverride.allCases) { mode in
                     Text(mode.displayName).tag(mode)
                 }
@@ -431,7 +451,7 @@ struct ScreenshotWorkspaceView: View {
                     count: group.count(for: slot),
                     isMissingRequirement: !group.isUnassigned && missingRequirements.contains { $0.contains(slot) }
                 )
-                    .frame(width: 96)
+                .frame(width: 96)
             }
             Text(remoteScreenshotCountText(for: group))
                 .font(.caption.weight(.semibold))
@@ -440,10 +460,14 @@ struct ScreenshotWorkspaceView: View {
                 .frame(width: 64, alignment: .center)
                 .help(L("Current App Store screenshot count."))
             Spacer()
-            Text(group.isUnassigned ? L("Needs locale") : (missingRequirements.isEmpty ? L("OK") : L("%d missing sizes", missingRequirements.count)))
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(group.isUnassigned ? .orange : (missingRequirements.isEmpty ? .green : .orange))
-                .frame(width: 80, alignment: .trailing)
+            Text(
+                group.isUnassigned
+                    ? L("Needs locale")
+                    : (missingRequirements.isEmpty ? L("OK") : L("%d missing sizes", missingRequirements.count))
+            )
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(group.isUnassigned ? .orange : (missingRequirements.isEmpty ? .green : .orange))
+            .frame(width: 80, alignment: .trailing)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
@@ -489,15 +513,17 @@ struct ScreenshotWorkspaceView: View {
                         Button {
                             showAllIssues.toggle()
                         } label: {
-                            Text(showAllIssues
-                                 ? L("Show fewer issues")
-                                 : L("Show all %d issue(s)", issues.count))
-                                .font(.caption)
-                                .foregroundStyle(.tint)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 8)
-                                .contentShape(Rectangle())
+                            Text(
+                                showAllIssues
+                                    ? L("Show fewer issues")
+                                    : L("Show all %d issue(s)", issues.count)
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.tint)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }

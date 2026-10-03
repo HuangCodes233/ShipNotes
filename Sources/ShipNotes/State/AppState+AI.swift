@@ -6,15 +6,16 @@ import AppKit
 
 @MainActor
 extension AppState {
-    internal func bumpAICallCount() {
+    func bumpAICallCount() {
         aiCallCount += 1
         defaults.set(aiCallCount, forKey: SettingsKey.aiCallCount)
     }
 
     internal static func loadStoredVisionAIProvider(defaults: UserDefaults = .standard) -> AIProvider {
         guard let raw = defaults.string(forKey: SettingsKey.aiVisionProvider),
-              let provider = AIProvider(rawValue: raw),
-              provider.supportsVisionInput else {
+            let provider = AIProvider(rawValue: raw),
+            provider.supportsVisionInput
+        else {
             return .none
         }
         return provider
@@ -26,13 +27,15 @@ extension AppState {
     }
 
     func aiBaseURL(for provider: AIProvider, role: AIProfileRole = .text) -> URL {
-        let stored = defaults.string(forKey: provider.baseURLDefaultsKey(for: role))?
+        let stored =
+            defaults.string(forKey: provider.baseURLDefaultsKey(for: role))?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return (stored.isEmpty ? nil : URL(string: stored)) ?? provider.defaultBaseURL
     }
 
     func aiModel(for provider: AIProvider, role: AIProfileRole = .text) -> String {
-        let stored = defaults.string(forKey: provider.modelDefaultsKey(for: role))?
+        let stored =
+            defaults.string(forKey: provider.modelDefaultsKey(for: role))?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return stored.isEmpty ? provider.defaultModel(for: role) : stored
     }
@@ -53,7 +56,9 @@ extension AppState {
 
     func reloadAIServiceFromKeychain(allowsAuthenticationUI: Bool = true) {
         for provider in AIProvider.allCases where provider != .none {
-            let key = try? (allowsAuthenticationUI
+            let key =
+                try?
+                (allowsAuthenticationUI
                 ? aiKeychainStore.load(for: provider)
                 : aiKeychainStore.loadWithoutPrompt(for: provider))
             if let key, !key.isEmpty {
@@ -66,12 +71,14 @@ extension AppState {
         aiService = UnconfiguredAIService()
     }
 
-    internal func reloadAIServiceFromKeychainInBackground(allowsAuthenticationUI: Bool) async {
+    func reloadAIServiceFromKeychainInBackground(allowsAuthenticationUI: Bool) async {
         let providerBeforeLoad = selectedAIProvider
         let store = aiKeychainStore
         let candidate = await Task.detached(priority: .utility) { () -> (AIProvider, String)? in
             for provider in AIProvider.allCases where provider != .none {
-                let key = try? (allowsAuthenticationUI
+                let key =
+                    try?
+                    (allowsAuthenticationUI
                     ? store.load(for: provider)
                     : store.loadWithoutPrompt(for: provider))
                 if let key, !key.isEmpty {
@@ -93,7 +100,7 @@ extension AppState {
         }
     }
 
-    internal func makeAIService(for provider: AIProvider, cachedKey: String?) -> any AIService {
+    func makeAIService(for provider: AIProvider, cachedKey: String?) -> any AIService {
         let baseURL = aiBaseURL(for: provider)
         let model = aiModel(for: provider)
         switch provider {
@@ -163,7 +170,9 @@ extension AppState {
 
     func reloadVisionAIServiceFromKeychain(allowsAuthenticationUI: Bool = true) {
         for provider in AIProvider.allCases where provider.supportsVisionInput {
-            let key = try? (allowsAuthenticationUI
+            let key =
+                try?
+                (allowsAuthenticationUI
                 ? aiKeychainStore.load(for: provider, role: .vision)
                 : aiKeychainStore.loadWithoutPrompt(for: provider, role: .vision))
             if let key, !key.isEmpty {
@@ -177,12 +186,14 @@ extension AppState {
         visionAIService = UnconfiguredScreenshotVisionAIService()
     }
 
-    internal func reloadVisionAIServiceFromKeychainInBackground(allowsAuthenticationUI: Bool) async {
+    func reloadVisionAIServiceFromKeychainInBackground(allowsAuthenticationUI: Bool) async {
         let providerBeforeLoad = selectedVisionAIProvider
         let store = aiKeychainStore
         let candidate = await Task.detached(priority: .utility) { () -> (AIProvider, String)? in
             for provider in AIProvider.allCases where provider.supportsVisionInput {
-                let key = try? (allowsAuthenticationUI
+                let key =
+                    try?
+                    (allowsAuthenticationUI
                     ? store.load(for: provider, role: .vision)
                     : store.loadWithoutPrompt(for: provider, role: .vision))
                 if let key, !key.isEmpty {
@@ -205,7 +216,7 @@ extension AppState {
         }
     }
 
-    internal func makeVisionAIService(for provider: AIProvider, cachedKey: String?) -> any ScreenshotVisionAIService {
+    func makeVisionAIService(for provider: AIProvider, cachedKey: String?) -> any ScreenshotVisionAIService {
         let baseURL = aiBaseURL(for: provider, role: .vision)
         let model = aiModel(for: provider, role: .vision)
         switch provider {
@@ -292,92 +303,93 @@ extension AppState {
                 return try String(contentsOf: url, encoding: .utf8)
             }
 
-        let supportedExts: Set<String> = ["md", "markdown", "txt", "yaml", "yml", "json"]
-        let maxPayload = 400_000
-        let maxFiles = 80
-        var pieces: [String] = []
-        var totalSize = 0
-        var skipped = 0
+            let supportedExts: Set<String> = ["md", "markdown", "txt", "yaml", "yml", "json"]
+            let maxPayload = 400_000
+            let maxFiles = 80
+            var pieces: [String] = []
+            var totalSize = 0
+            var skipped = 0
 
-        let rootPath = url.standardizedFileURL.path
-        var candidates: [(url: URL, score: Int)] = []
+            let rootPath = url.standardizedFileURL.path
+            var candidates: [(url: URL, score: Int)] = []
 
-        func normalized(_ value: String) -> String {
-            value.lowercased().filter { $0.isLetter || $0.isNumber }
-        }
+            func normalized(_ value: String) -> String {
+                value.lowercased().filter { $0.isLetter || $0.isNumber }
+            }
 
-        func score(_ fileURL: URL) -> Int {
-            let path = fileURL.standardizedFileURL.path.lowercased()
-            let basename = normalized((fileURL.lastPathComponent as NSString).deletingPathExtension)
-            var score = 0
-            if path.contains("/appstore/") { score += 80 }
-            if path.contains("/metadata/") { score += 70 }
-            if basename == "changelog" { score += 65 }
-            if basename.contains("releasenotes") { score += 65 }
-            if basename.contains("whatsnew") { score += 55 }
-            if basename.contains("versionhistory") { score += 45 }
-            if basename.contains("appstore") { score += 35 }
-            if basename.contains("metadata") { score += 30 }
-            if basename.contains("release") { score += 20 }
-            return score
-        }
+            func score(_ fileURL: URL) -> Int {
+                let path = fileURL.standardizedFileURL.path.lowercased()
+                let basename = normalized((fileURL.lastPathComponent as NSString).deletingPathExtension)
+                var score = 0
+                if path.contains("/appstore/") { score += 80 }
+                if path.contains("/metadata/") { score += 70 }
+                if basename == "changelog" { score += 65 }
+                if basename.contains("releasenotes") { score += 65 }
+                if basename.contains("whatsnew") { score += 55 }
+                if basename.contains("versionhistory") { score += 45 }
+                if basename.contains("appstore") { score += 35 }
+                if basename.contains("metadata") { score += 30 }
+                if basename.contains("release") { score += 20 }
+                return score
+            }
 
-        func walk(_ folder: URL, depth: Int) {
-            guard depth <= 5, candidates.count < maxFiles * 4 else { return }
-            let entries = (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
-            for child in entries.sorted(by: { $0.path < $1.path }) {
-                var childIsDir: ObjCBool = false
-                fm.fileExists(atPath: child.path, isDirectory: &childIsDir)
-                if FileScannerUtils.shouldSkip(child, isDirectory: childIsDir.boolValue) { continue }
-                if childIsDir.boolValue {
-                    walk(child, depth: depth + 1)
+            func walk(_ folder: URL, depth: Int) {
+                guard depth <= 5, candidates.count < maxFiles * 4 else { return }
+                let entries = (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
+                for child in entries.sorted(by: { $0.path < $1.path }) {
+                    var childIsDir: ObjCBool = false
+                    fm.fileExists(atPath: child.path, isDirectory: &childIsDir)
+                    if FileScannerUtils.shouldSkip(child, isDirectory: childIsDir.boolValue) { continue }
+                    if childIsDir.boolValue {
+                        walk(child, depth: depth + 1)
+                        continue
+                    }
+                    let ext = child.pathExtension.lowercased()
+                    guard supportedExts.contains(ext) else { continue }
+                    candidates.append((child, score(child)))
+                }
+            }
+
+            walk(url, depth: 0)
+
+            let selected =
+                candidates
+                .sorted { lhs, rhs in
+                    if lhs.score != rhs.score { return lhs.score > rhs.score }
+                    if lhs.url.path.count != rhs.url.path.count { return lhs.url.path.count < rhs.url.path.count }
+                    return lhs.url.path < rhs.url.path
+                }
+                .prefix(maxFiles)
+
+            for fileURL in selected.map(\.url) {
+                let ext = fileURL.pathExtension.lowercased()
+                guard supportedExts.contains(ext) else { continue }
+                guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else { continue }
+                let standardizedPath = fileURL.standardizedFileURL.path
+                let relativePath: String
+                if standardizedPath.hasPrefix(rootPath) {
+                    let rawRelative = String(standardizedPath.dropFirst(rootPath.count))
+                        .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                    relativePath = rawRelative.isEmpty ? fileURL.lastPathComponent : rawRelative
+                } else {
+                    relativePath = fileURL.lastPathComponent
+                }
+                let header = "\n\n=== FILE: \(relativePath) ===\n\n"
+                let chunkSize = header.count + content.count
+                if totalSize + chunkSize > maxPayload {
+                    skipped += 1
                     continue
                 }
-                let ext = child.pathExtension.lowercased()
-                guard supportedExts.contains(ext) else { continue }
-                candidates.append((child, score(child)))
+                pieces.append(header + content)
+                totalSize += chunkSize
             }
-        }
-
-        walk(url, depth: 0)
-
-        let selected = candidates
-            .sorted { lhs, rhs in
-                if lhs.score != rhs.score { return lhs.score > rhs.score }
-                if lhs.url.path.count != rhs.url.path.count { return lhs.url.path.count < rhs.url.path.count }
-                return lhs.url.path < rhs.url.path
+            if skipped > 0 {
+                pieces.append("\n\n[\(skipped) more files omitted due to size limit]")
             }
-            .prefix(maxFiles)
-
-        for fileURL in selected.map(\.url) {
-            let ext = fileURL.pathExtension.lowercased()
-            guard supportedExts.contains(ext) else { continue }
-            guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else { continue }
-            let standardizedPath = fileURL.standardizedFileURL.path
-            let relativePath: String
-            if standardizedPath.hasPrefix(rootPath) {
-                let rawRelative = String(standardizedPath.dropFirst(rootPath.count))
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-                relativePath = rawRelative.isEmpty ? fileURL.lastPathComponent : rawRelative
-            } else {
-                relativePath = fileURL.lastPathComponent
+            if pieces.isEmpty {
+                throw ReleaseNotesParserError.noLocaleFilesFound(url)
             }
-            let header = "\n\n=== FILE: \(relativePath) ===\n\n"
-            let chunkSize = header.count + content.count
-            if totalSize + chunkSize > maxPayload {
-                skipped += 1
-                continue
-            }
-            pieces.append(header + content)
-            totalSize += chunkSize
-        }
-        if skipped > 0 {
-            pieces.append("\n\n[\(skipped) more files omitted due to size limit]")
-        }
-        if pieces.isEmpty {
-            throw ReleaseNotesParserError.noLocaleFilesFound(url)
-        }
-        return pieces.joined()
+            return pieces.joined()
         }.value
     }
 }

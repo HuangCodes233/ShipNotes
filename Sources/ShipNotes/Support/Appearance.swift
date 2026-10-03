@@ -25,8 +25,8 @@ enum AppearanceOption: String, CaseIterable, Identifiable {
     var colorScheme: ColorScheme? {
         switch self {
         case .system: return nil
-        case .light:  return .light
-        case .dark:   return .dark
+        case .light: return .light
+        case .dark: return .dark
         }
     }
 }
@@ -43,9 +43,9 @@ enum AppearanceManager {
         #if canImport(AppKit)
         let appearance: NSAppearance?
         switch option {
-        case .system: appearance = nil   // nil = inherit the system setting
-        case .light:  appearance = NSAppearance(named: .aqua)
-        case .dark:   appearance = NSAppearance(named: .darkAqua)
+        case .system: appearance = nil  // nil = inherit the system setting
+        case .light: appearance = NSAppearance(named: .aqua)
+        case .dark: appearance = NSAppearance(named: .darkAqua)
         }
         NSApplication.shared.appearance = appearance
         #endif

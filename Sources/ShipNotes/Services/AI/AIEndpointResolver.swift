@@ -7,7 +7,7 @@ enum AIEndpointResolver {
             defaultPath: ["v1", "chat", "completions"],
             acceptedTerminalPaths: [
                 ["v1", "chat", "completions"],
-                ["chat", "completions"]
+                ["chat", "completions"],
             ]
         )
     }
@@ -18,7 +18,7 @@ enum AIEndpointResolver {
             defaultPath: ["v1", "messages"],
             acceptedTerminalPaths: [
                 ["v1", "messages"],
-                ["messages"]
+                ["messages"],
             ]
         )
     }
@@ -37,7 +37,8 @@ enum AIEndpointResolver {
         }
 
         var url = baseURL
-        let pathToAppend = existingPath.last == defaultPath.first
+        let pathToAppend =
+            existingPath.last == defaultPath.first
             ? defaultPath.dropFirst()
             : defaultPath[...]
         for component in pathToAppend {

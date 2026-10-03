@@ -4,7 +4,10 @@ import OSLog
 
 // Screenshot set fetch, multipart upload, and replacement.
 extension AppStoreConnectClient {
-    func replaceScreenshots(localizationId: String, displayType: String, files: [URL], onProgress: (@Sendable (Int, Int, String) -> Void)? = nil) async throws -> Int {
+    func replaceScreenshots(
+        localizationId: String, displayType: String, files: [URL],
+        onProgress: (@Sendable (Int, Int, String) -> Void)? = nil
+    ) async throws -> Int {
         guard !files.isEmpty else { return 0 }
         // Fail before ANY destructive change if the batch can't fit in one
         // set — a mid-upload discovery would leave a partial replacement.
@@ -32,7 +35,7 @@ extension AppStoreConnectClient {
             path: "appScreenshotSets/\(set.id)/appScreenshots",
             queryItems: [
                 URLQueryItem(name: "limit", value: "200"),
-                URLQueryItem(name: "fields[appScreenshots]", value: "fileName,fileSize,assetDeliveryState")
+                URLQueryItem(name: "fields[appScreenshots]", value: "fileName,fileSize,assetDeliveryState"),
             ]
         )
 
@@ -158,7 +161,7 @@ extension AppStoreConnectClient {
             path: "appScreenshotSets/\(setId)/appScreenshots",
             queryItems: [
                 URLQueryItem(name: "limit", value: "200"),
-                URLQueryItem(name: "fields[appScreenshots]", value: "assetDeliveryState")
+                URLQueryItem(name: "fields[appScreenshots]", value: "assetDeliveryState"),
             ]
         )
         var states: [String: ASCAssetDeliveryState] = [:]
@@ -208,10 +211,11 @@ extension AppStoreConnectClient {
                     URLQueryItem(name: "include", value: "appScreenshots"),
                     URLQueryItem(name: "limit[appScreenshots]", value: "50"),
                     URLQueryItem(name: "fields[appScreenshotSets]", value: "screenshotDisplayType,appScreenshots"),
-                    URLQueryItem(name: "fields[appScreenshots]", value: "fileName,fileSize,imageAsset")
+                    URLQueryItem(name: "fields[appScreenshots]", value: "fileName,fileSize,imageAsset"),
                 ]
             )
-            response = try await send(try await makeRequest(url: url), as: ASCScreenshotSetsWithScreenshotsResponse.self)
+            response = try await send(
+                try await makeRequest(url: url), as: ASCScreenshotSetsWithScreenshotsResponse.self)
         } catch AppStoreConnectClientError.requestFailed(statusCode: 400, _) {
             // An API revision that rejects the include parameters still
             // supports the per-set requests.
@@ -241,7 +245,7 @@ extension AppStoreConnectClient {
             path: "appStoreVersionLocalizations/\(localizationId)/appScreenshotSets",
             queryItems: [
                 URLQueryItem(name: "limit", value: "50"),
-                URLQueryItem(name: "fields[appScreenshotSets]", value: "screenshotDisplayType")
+                URLQueryItem(name: "fields[appScreenshotSets]", value: "screenshotDisplayType"),
             ]
         )
         var remoteSets: [RemoteScreenshotSet] = []
@@ -258,7 +262,7 @@ extension AppStoreConnectClient {
             path: "appScreenshotSets/\(setId)/appScreenshots",
             queryItems: [
                 URLQueryItem(name: "limit", value: "200"),
-                URLQueryItem(name: "fields[appScreenshots]", value: "fileName,fileSize,imageAsset")
+                URLQueryItem(name: "fields[appScreenshots]", value: "fileName,fileSize,imageAsset"),
             ]
         )
     }
@@ -315,7 +319,7 @@ extension AppStoreConnectClient {
             path: "appStoreVersionLocalizations/\(localizationId)/appScreenshotSets",
             queryItems: [
                 URLQueryItem(name: "limit", value: "50"),
-                URLQueryItem(name: "fields[appScreenshotSets]", value: "screenshotDisplayType")
+                URLQueryItem(name: "fields[appScreenshotSets]", value: "screenshotDisplayType"),
             ]
         )
         if let existing = sets.first(where: { $0.attributes?.screenshotDisplayType == displayType }) {

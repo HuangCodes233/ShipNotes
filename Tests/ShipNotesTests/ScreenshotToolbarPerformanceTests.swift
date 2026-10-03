@@ -4,8 +4,9 @@ import Testing
 
 /// Opt in with SHIPNOTES_BENCHMARKS=1 swift test -c release --filter ScreenshotToolbarPerformanceTests.
 /// Measures the getters the screenshot toolbar reads on every redraw.
-@Suite("Screenshot toolbar performance", .serialized,
-       .enabled(if: ProcessInfo.processInfo.environment["SHIPNOTES_BENCHMARKS"] == "1"))
+@Suite(
+    "Screenshot toolbar performance", .serialized,
+    .enabled(if: ProcessInfo.processInfo.environment["SHIPNOTES_BENCHMARKS"] == "1"))
 @MainActor
 struct ScreenshotToolbarPerformanceTests {
     @Test func toolbarReadsWithVisionAIConfigured() {
@@ -18,7 +19,8 @@ struct ScreenshotToolbarPerformanceTests {
         )
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -26,8 +28,9 @@ struct ScreenshotToolbarPerformanceTests {
 
         let locales = LocaleMapper.appStoreLocales
         state.localeNotes = locales.map {
-            LocaleNote(locale: $0, remoteLocalizationId: "loc-\($0)", localText: "Ready",
-                       remoteText: "Ready", status: .noChange, diffSummary: nil)
+            LocaleNote(
+                locale: $0, remoteLocalizationId: "loc-\($0)", localText: "Ready",
+                remoteText: "Ready", status: .noChange, diffSummary: nil)
         }
         let root = URL(fileURLWithPath: "/tmp/ShipNotes-toolbar-fixtures")
         let assets = locales.flatMap { locale in
@@ -41,8 +44,9 @@ struct ScreenshotToolbarPerformanceTests {
                 )
             }
         }
-        state.screenshotScan = ScreenshotScan(inputRoot: root, root: root,
-                                             sourceKind: .directFolder, assets: assets, skippedCount: 0)
+        state.screenshotScan = ScreenshotScan(
+            inputRoot: root, root: root,
+            sourceKind: .directFolder, assets: assets, skippedCount: 0)
         state.selectedScreenshotLocale = "en-US"
 
         measure("screenshot-toolbar-10-redraws-\(assets.count)-assets") {

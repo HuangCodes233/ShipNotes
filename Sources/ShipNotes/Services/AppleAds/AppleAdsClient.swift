@@ -6,7 +6,9 @@ protocol AppleAdsServicing: Sendable {
     func fetchAdAccount(id: String) async throws -> AppleAdsAccount
     func queryCampaigns(adamId: String) async throws -> [AppleAdsCampaign]
     func queryAdGroups(campaignId: String) async throws -> [AppleAdsAdGroup]
-    func queryCampaignReports(campaignIds: [String], start: String, end: String) async throws -> [AppleAdsCampaignMetrics]
+    func queryCampaignReports(
+        campaignIds: [String], start: String, end: String
+    ) async throws -> [AppleAdsCampaignMetrics]
     func queryKeywords(adGroupId: String) async throws -> [AppleAdsKeyword]
     func querySearchTerms(campaignId: String, start: String, end: String) async throws -> [AppleAdsSearchTerm]
     func queryKeywordSuggestions(adamId: String, seeds: [String]) async throws -> [AppleAdsKeywordSuggestion]
@@ -93,7 +95,8 @@ extension AppleAdsClient {
         path: String,
         scoped: Bool
     ) async throws -> Result {
-        let request = try await makeRequest(path: path, method: "GET", scoped: scoped, body: Optional<AdsEmptyBody>.none)
+        let request = try await makeRequest(
+            path: path, method: "GET", scoped: scoped, body: Optional<AdsEmptyBody>.none)
         return try await send(request, as: type)
     }
 
@@ -154,7 +157,7 @@ extension AppleAdsClient {
                 },
                 shouldRetryURLError: { error in
                     let transient: Set<URLError.Code> = [
-                        .timedOut, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed
+                        .timedOut, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed,
                     ]
                     guard transient.contains(error.code) else { return false }
                     return method == "GET" || method == "PUT" || request.url?.path.contains("/query") == true
@@ -200,8 +203,9 @@ extension AppleAdsClient {
 
     func decodeErrorMessage(from data: Data) -> String {
         if let envelope = try? decoder.decode(AppleAdsEnvelope<AdsEmptyResult>.self, from: data),
-           let message = envelope.error?.message,
-           !message.isEmpty {
+            let message = envelope.error?.message,
+            !message.isEmpty
+        {
             return message
         }
         return String(data: data, encoding: .utf8) ?? "Unknown error"
@@ -226,7 +230,8 @@ struct AppleAdsEnvelope<Result: Decodable>: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         success = try container.decodeIfPresent(Bool.self, forKey: .success)
         error = try container.decodeIfPresent(AppleAdsAPIErrorBody.self, forKey: .error)
-        result = try container.decodeIfPresent(Result.self, forKey: .result)
+        result =
+            try container.decodeIfPresent(Result.self, forKey: .result)
             ?? container.decodeIfPresent(Result.self, forKey: .data)
     }
 }
@@ -363,10 +368,11 @@ struct AppleAdsListResult<Item: Decodable>: Decodable {
         // of them is a shape this decoder doesn't understand: failing is
         // better than showing it as "no campaigns" or $0 spend.
         guard CodingKeys.allCases.contains(where: container.contains) else {
-            throw DecodingError.dataCorrupted(DecodingError.Context(
-                codingPath: decoder.codingPath,
-                debugDescription: "Unrecognized Apple Ads list response"
-            ))
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "Unrecognized Apple Ads list response"
+                ))
         }
         extracted = []
     }

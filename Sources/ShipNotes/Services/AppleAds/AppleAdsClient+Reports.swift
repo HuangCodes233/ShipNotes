@@ -6,13 +6,16 @@ extension AppleAdsClient {
     /// A campaign without a report row had no activity in the range. Its
     /// currency is left empty for the caller to fill from the campaign rather
     /// than assumed to be USD.
-    func queryCampaignReports(campaignIds: [String], start: String, end: String) async throws -> [AppleAdsCampaignMetrics] {
+    func queryCampaignReports(
+        campaignIds: [String], start: String, end: String
+    ) async throws -> [AppleAdsCampaignMetrics] {
         guard !campaignIds.isEmpty else { return [] }
         // Unstructured tasks, not a TaskGroup (see mapConcurrently): the
         // macOS 27.2 beta runtime crashed in TaskGroup::offer when group
         // teardown raced a completing child. Each campaign captures its own
         // error; the first one is rethrown after every request finishes.
-        let outcomes = await mapConcurrently(campaignIds, maxConcurrent: 4) { campaignId -> Result<AppleAdsCampaignMetrics, any Error> in
+        let outcomes = await mapConcurrently(campaignIds, maxConcurrent: 4) {
+            campaignId -> Result<AppleAdsCampaignMetrics, any Error> in
             do {
                 return .success(try await queryCampaignReport(campaignId: campaignId, start: start, end: end))
             } catch {
@@ -29,7 +32,9 @@ extension AppleAdsClient {
         return metrics
     }
 
-    private func queryCampaignReport(campaignId: String, start: String, end: String) async throws -> AppleAdsCampaignMetrics {
+    private func queryCampaignReport(
+        campaignId: String, start: String, end: String
+    ) async throws -> AppleAdsCampaignMetrics {
         let body = AppleAdsQueryBody(
             filters: [
                 .init(field: "campaignId", operator: "EQUALS", value: filterValue(campaignId))
@@ -43,7 +48,8 @@ extension AppleAdsClient {
                 granularity: "DAILY"
             )
         )
-        let list = try await post(AppleAdsListResult<AdsReportRowDTO>.self, path: "reports/apps/campaigns/query", body: body)
+        let list = try await post(
+            AppleAdsListResult<AdsReportRowDTO>.self, path: "reports/apps/campaigns/query", body: body)
         if let row = list.extracted.first {
             return row.asMetrics(campaignId: campaignId)
         }
@@ -71,7 +77,8 @@ extension AppleAdsClient {
                 granularity: "DAILY"
             )
         )
-        let list = try await post(AppleAdsListResult<AdsSearchTermRowDTO>.self, path: "reports/apps/searchterms/query", body: body)
+        let list = try await post(
+            AppleAdsListResult<AdsSearchTermRowDTO>.self, path: "reports/apps/searchterms/query", body: body)
         return list.extracted.enumerated().map { index, row in row.asModel(index: index) }
     }
 }
@@ -86,9 +93,11 @@ struct AdsReportRowDTO: Decodable {
 
     func asMetrics(campaignId: String) -> AppleAdsCampaignMetrics {
         let rows = granularMetrics ?? granularity
-        let metrics = totalMetrics ?? total ?? rows?.reduce(into: AdsMetricsDTO()) { partial, row in
-            partial.merge(row)
-        }
+        let metrics =
+            totalMetrics ?? total
+            ?? rows?.reduce(into: AdsMetricsDTO()) { partial, row in
+                partial.merge(row)
+            }
         return AppleAdsCampaignMetrics(
             campaignId: metadata?.id?.value ?? campaignId,
             spend: metrics?.spendValue ?? 0,

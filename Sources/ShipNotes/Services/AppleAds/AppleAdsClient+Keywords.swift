@@ -47,7 +47,8 @@ extension AppleAdsClient {
                 )
             }
         )
-        let result = try await post(AppleAdsListResult<AdsBulkResultItem>.self, path: "keywords/bulk-create", body: body)
+        let result = try await post(
+            AppleAdsListResult<AdsBulkResultItem>.self, path: "keywords/bulk-create", body: body)
         return try Self.validateBulkKeywordResult(result.extracted, expectedCount: keywords.count)
     }
 }
@@ -114,14 +115,15 @@ struct AdsBulkResultItem: Decodable {
     var success: Bool?
 }
 
-
 extension AppleAdsClient {
     static func validateBulkKeywordResult(_ items: [AdsBulkResultItem], expectedCount: Int) throws -> Int {
         let succeeded = items.filter { $0.success == true }.count
         guard items.count == expectedCount, succeeded == expectedCount else {
             throw AppleAdsClientError.requestFailed(
                 statusCode: 409,
-                message: L("Only %d of %d keywords were confirmed created. Refresh the keyword list before retrying.", succeeded, expectedCount)
+                message: L(
+                    "Only %d of %d keywords were confirmed created. Refresh the keyword list before retrying.",
+                    succeeded, expectedCount)
             )
         }
         return succeeded

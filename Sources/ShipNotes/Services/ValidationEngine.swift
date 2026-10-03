@@ -21,18 +21,22 @@ struct ValidationEngine {
         }
 
         if text.count > Self.whatsNewCharacterLimit {
-            issues.append(.init(
-                severity: .error,
-                message: L("Exceeds App Store limit of %1$d characters (currently %2$d)", Self.whatsNewCharacterLimit, text.count)
-            ))
+            issues.append(
+                .init(
+                    severity: .error,
+                    message: L(
+                        "Exceeds App Store limit of %1$d characters (currently %2$d)", Self.whatsNewCharacterLimit,
+                        text.count)
+                ))
         }
 
         if containsMarkdown(text) {
-            issues.append(.init(
-                severity: .warning,
-                message: L("Detected markdown syntax. App Store renders release notes as plain text."),
-                isMarkdown: true
-            ))
+            issues.append(
+                .init(
+                    severity: .warning,
+                    message: L("Detected markdown syntax. App Store renders release notes as plain text."),
+                    isMarkdown: true
+                ))
         }
 
         return issues

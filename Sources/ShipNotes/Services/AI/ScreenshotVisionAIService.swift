@@ -52,31 +52,36 @@ private enum ScreenshotVisionPayloadBuilder {
             for answer in try await classify(payloads) {
                 // Ignore IDs the model invented or echoed from another batch.
                 guard let assetID = assetIDsByPromptID[answer.assetID] else { continue }
-                assignments.append(ScreenshotLocaleAssignment(
-                    assetID: assetID,
-                    locale: answer.locale,
-                    confidence: answer.confidence,
-                    reason: answer.reason
-                ))
+                assignments.append(
+                    ScreenshotLocaleAssignment(
+                        assetID: assetID,
+                        locale: answer.locale,
+                        confidence: answer.confidence,
+                        reason: answer.reason
+                    ))
             }
             batchStart += batchSize
         }
         return assignments
     }
 
-    static func payloads(from assets: ArraySlice<ScreenshotAsset>, firstIndex: Int) throws -> [ScreenshotVisionAssetPayload] {
+    static func payloads(
+        from assets: ArraySlice<ScreenshotAsset>, firstIndex: Int
+    ) throws -> [ScreenshotVisionAssetPayload] {
         try assets.enumerated().map { offset, asset in
             let options: [CFString: Any] = [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
                 kCGImageSourceThumbnailMaxPixelSize: 512,
-                kCGImageSourceCreateThumbnailWithTransform: true
+                kCGImageSourceCreateThumbnailWithTransform: true,
             ]
             guard let source = CGImageSourceCreateWithURL(asset.url as CFURL, nil),
-                  let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+                let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+            else {
                 throw AIServiceError.invalidResponse("Cannot read image: \(asset.url.lastPathComponent)")
             }
             let destData = NSMutableData()
-            guard let dest = CGImageDestinationCreateWithData(destData, UTType.jpeg.identifier as CFString, 1, nil) else {
+            guard let dest = CGImageDestinationCreateWithData(destData, UTType.jpeg.identifier as CFString, 1, nil)
+            else {
                 throw AIServiceError.invalidResponse("Cannot encode image")
             }
             CGImageDestinationAddImage(dest, cgImage, [kCGImageDestinationLossyCompressionQuality: 0.8] as CFDictionary)
@@ -171,8 +176,8 @@ struct OpenAIScreenshotVisionAIService: ScreenshotVisionAIService {
                 "type": "image_url",
                 "image_url": [
                     "url": "data:\(payload.mediaType);base64,\(payload.base64)",
-                    "detail": "low"
-                ]
+                    "detail": "low",
+                ],
             ])
         }
 
@@ -182,7 +187,7 @@ struct OpenAIScreenshotVisionAIService: ScreenshotVisionAIService {
             "response_format": ["type": "json_object"],
             "messages": [
                 ["role": "user", "content": content]
-            ]
+            ],
         ]
         let data = try await post(body: body)
         let contentText = try Self.extractContent(data)
@@ -278,8 +283,8 @@ struct AnthropicScreenshotVisionAIService: ScreenshotVisionAIService {
                 "source": [
                     "type": "base64",
                     "media_type": payload.mediaType,
-                    "data": payload.base64
-                ]
+                    "data": payload.base64,
+                ],
             ])
         }
 
@@ -291,12 +296,12 @@ struct AnthropicScreenshotVisionAIService: ScreenshotVisionAIService {
                 [
                     "type": "text",
                     "text": ScreenshotVisionPrompt.systemPrompt(knownLocales: knownLocales, appName: appName),
-                    "cache_control": ["type": "ephemeral"]
+                    "cache_control": ["type": "ephemeral"],
                 ]
             ],
             "messages": [
                 ["role": "user", "content": content]
-            ]
+            ],
         ]
         let data = try await post(body: body)
         let contentText = try Self.extractContent(data)
@@ -373,12 +378,14 @@ private extension ScreenshotVisionAIService {
     static func jsonData(from content: String) throws -> Data {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         if let data = trimmed.data(using: .utf8),
-           (try? JSONDecoder().decode(ScreenshotVisionAssignmentsResponse.self, from: data)) != nil {
+            (try? JSONDecoder().decode(ScreenshotVisionAssignmentsResponse.self, from: data)) != nil
+        {
             return data
         }
         guard let start = trimmed.firstIndex(of: "{"),
-              let end = trimmed.lastIndex(of: "}"),
-              start <= end else {
+            let end = trimmed.lastIndex(of: "}"),
+            start <= end
+        else {
             throw AIServiceError.invalidResponse("Vision response did not contain JSON")
         }
         let json = String(trimmed[start...end])

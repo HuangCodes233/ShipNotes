@@ -71,11 +71,12 @@ extension ReleaseNotesParser {
                 currentLines = []
                 return
             }
-            blocks.append(VersionHistoryBlock(
-                version: version,
-                title: title,
-                body: currentLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-            ))
+            blocks.append(
+                VersionHistoryBlock(
+                    version: version,
+                    title: title,
+                    body: currentLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+                ))
             currentTitle = nil
             currentVersion = nil
             currentLines = []
@@ -90,8 +91,9 @@ extension ReleaseNotesParser {
             }
 
             if !insideCodeFence,
-               let heading = markdownHeading(line),
-               heading.level == 2 {
+                let heading = markdownHeading(line),
+                heading.level == 2
+            {
                 flush()
                 currentTitle = heading.title
                 currentVersion = extractVersionFromLogHeading(heading.title)
@@ -111,7 +113,8 @@ extension ReleaseNotesParser {
         currentVersion: String?
     ) -> VersionHistoryBlock? {
         if let version = currentVersion,
-           let match = blocks.first(where: { logVersionMatches($0.version, requested: version) }) {
+            let match = blocks.first(where: { logVersionMatches($0.version, requested: version) })
+        {
             return match
         }
         return blocks.first
@@ -161,10 +164,11 @@ extension ReleaseNotesParser {
 
         func flush() {
             guard let locale = currentLocale else { return }
-            sections.append(LocaleHeadingSection(
-                locale: locale,
-                body: currentLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-            ))
+            sections.append(
+                LocaleHeadingSection(
+                    locale: locale,
+                    body: currentLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+                ))
             currentLocale = nil
             currentLevel = nil
             currentLines = []
@@ -202,9 +206,10 @@ extension ReleaseNotesParser {
 
     func normalizedReleaseNotesBody(from text: String, matchingVersion: String?) -> String {
         let codeBlocks = extractCodeBlockContents(text)
-        let raw = codeBlocks.first.map {
-            extractReleaseNotes(fromCodeBlock: $0, matchingVersion: matchingVersion)
-        } ?? stripMarkdownScaffolding(text)
+        let raw =
+            codeBlocks.first.map {
+                extractReleaseNotes(fromCodeBlock: $0, matchingVersion: matchingVersion)
+            } ?? stripMarkdownScaffolding(text)
         return raw.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 

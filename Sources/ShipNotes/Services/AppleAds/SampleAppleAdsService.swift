@@ -43,25 +43,35 @@ final class SampleAppleAdsService: AppleAdsServicing, @unchecked Sendable {
                 dailyBudgetCurrency: "USD",
                 supplyPlacement: "APPSTORE_SEARCH_RESULTS",
                 displayStatus: "PAUSED"
-            )
+            ),
         ]
         adGroups = [
             AppleAdsAdGroup(id: "ag-1", campaignId: "camp-1", name: "Core keywords", status: "ENABLED"),
-            AppleAdsAdGroup(id: "ag-2", campaignId: "camp-2", name: "Brand terms", status: "PAUSED")
+            AppleAdsAdGroup(id: "ag-2", campaignId: "camp-2", name: "Brand terms", status: "PAUSED"),
         ]
         keywords = [
-            AppleAdsKeyword(id: "kw-1", adGroupId: "ag-1", text: "screenshot manager", matchType: "EXACT", status: "ENABLED", bidAmount: "1.50"),
-            AppleAdsKeyword(id: "kw-2", adGroupId: "ag-1", text: "app store screenshots", matchType: "BROAD", status: "ENABLED", bidAmount: "1.20"),
-            AppleAdsKeyword(id: "kw-3", adGroupId: "ag-2", text: "focus timer", matchType: "EXACT", status: "ENABLED", bidAmount: "0.90")
+            AppleAdsKeyword(
+                id: "kw-1", adGroupId: "ag-1", text: "screenshot manager", matchType: "EXACT", status: "ENABLED",
+                bidAmount: "1.50"),
+            AppleAdsKeyword(
+                id: "kw-2", adGroupId: "ag-1", text: "app store screenshots", matchType: "BROAD", status: "ENABLED",
+                bidAmount: "1.20"),
+            AppleAdsKeyword(
+                id: "kw-3", adGroupId: "ag-2", text: "focus timer", matchType: "EXACT", status: "ENABLED",
+                bidAmount: "0.90"),
         ]
         metrics = [
-            "camp-1": AppleAdsCampaignMetrics(campaignId: "camp-1", spend: 128.4, taps: 640, impressions: 18_200, installs: 86, currency: "USD"),
-            "camp-2": AppleAdsCampaignMetrics(campaignId: "camp-2", spend: 12.0, taps: 40, impressions: 2_100, installs: 4, currency: "USD")
+            "camp-1": AppleAdsCampaignMetrics(
+                campaignId: "camp-1", spend: 128.4, taps: 640, impressions: 18_200, installs: 86, currency: "USD"),
+            "camp-2": AppleAdsCampaignMetrics(
+                campaignId: "camp-2", spend: 12.0, taps: 40, impressions: 2_100, installs: 4, currency: "USD"),
         ]
         searchTerms = [
             "camp-1": [
-                AppleAdsSearchTerm(id: "st-1", text: "screenshot organizer", source: "SEARCH", taps: 42, installs: 9, spend: 18.5),
-                AppleAdsSearchTerm(id: "st-2", text: "app preview maker", source: "SEARCH", taps: 11, installs: 1, spend: 4.2)
+                AppleAdsSearchTerm(
+                    id: "st-1", text: "screenshot organizer", source: "SEARCH", taps: 42, installs: 9, spend: 18.5),
+                AppleAdsSearchTerm(
+                    id: "st-2", text: "app preview maker", source: "SEARCH", taps: 11, installs: 1, spend: 4.2),
             ]
         ]
     }
@@ -87,18 +97,21 @@ final class SampleAppleAdsService: AppleAdsServicing, @unchecked Sendable {
         adGroups.filter { $0.campaignId == campaignId }
     }
 
-    func queryCampaignReports(campaignIds: [String], start: String, end: String) async throws -> [AppleAdsCampaignMetrics] {
+    func queryCampaignReports(
+        campaignIds: [String], start: String, end: String
+    ) async throws -> [AppleAdsCampaignMetrics] {
         _ = start
         _ = end
         return campaignIds.map { id in
-            metrics[id] ?? AppleAdsCampaignMetrics(
-                campaignId: id,
-                spend: 0,
-                taps: 0,
-                impressions: 0,
-                installs: 0,
-                currency: "USD"
-            )
+            metrics[id]
+                ?? AppleAdsCampaignMetrics(
+                    campaignId: id,
+                    spend: 0,
+                    taps: 0,
+                    impressions: 0,
+                    installs: 0,
+                    currency: "USD"
+                )
         }
     }
 

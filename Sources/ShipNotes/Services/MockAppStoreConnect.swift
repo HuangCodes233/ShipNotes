@@ -15,9 +15,15 @@ struct MockAppStoreConnect {
 
     static func sampleApps() -> [AppRecord] {
         [
-            AppRecord(id: "app-1", name: "Example Gallery",  bundleId: "com.example.examplegallery", platform: "iOS",   iconSystemName: "tray.full"),
-            AppRecord(id: "app-2", name: "Example Timer",        bundleId: "com.example.exampletimer",      platform: "iOS",   iconSystemName: "timer"),
-            AppRecord(id: "app-3", name: "ShipNotes",         bundleId: "org.shipnotes.app",    platform: "macOS", iconSystemName: "shippingbox"),
+            AppRecord(
+                id: "app-1", name: "Example Gallery", bundleId: "com.example.examplegallery", platform: "iOS",
+                iconSystemName: "tray.full"),
+            AppRecord(
+                id: "app-2", name: "Example Timer", bundleId: "com.example.exampletimer", platform: "iOS",
+                iconSystemName: "timer"),
+            AppRecord(
+                id: "app-3", name: "ShipNotes", bundleId: "org.shipnotes.app", platform: "macOS",
+                iconSystemName: "shippingbox"),
         ]
     }
 
@@ -27,17 +33,29 @@ struct MockAppStoreConnect {
         switch appId {
         case "app-1":
             return [
-                ReleaseVersion(id: "v-1-1", appId: appId, versionString: "1.4.0", platform: "iOS", appStoreState: .prepareForSubmission, createdDate: calendar.date(byAdding: .day, value: -3, to: now)),
-                ReleaseVersion(id: "v-1-2", appId: appId, versionString: "1.3.0", platform: "iOS", appStoreState: .readyForSale, createdDate: calendar.date(byAdding: .day, value: -30, to: now)),
+                ReleaseVersion(
+                    id: "v-1-1", appId: appId, versionString: "1.4.0", platform: "iOS",
+                    appStoreState: .prepareForSubmission, createdDate: calendar.date(byAdding: .day, value: -3, to: now)
+                ),
+                ReleaseVersion(
+                    id: "v-1-2", appId: appId, versionString: "1.3.0", platform: "iOS", appStoreState: .readyForSale,
+                    createdDate: calendar.date(byAdding: .day, value: -30, to: now)),
             ]
         case "app-2":
             return [
-                ReleaseVersion(id: "v-2-1", appId: appId, versionString: "2.0.0", platform: "iOS", appStoreState: .waitingForReview, createdDate: calendar.date(byAdding: .day, value: -5, to: now)),
-                ReleaseVersion(id: "v-2-2", appId: appId, versionString: "1.9.0", platform: "iOS", appStoreState: .readyForSale, createdDate: calendar.date(byAdding: .day, value: -45, to: now)),
+                ReleaseVersion(
+                    id: "v-2-1", appId: appId, versionString: "2.0.0", platform: "iOS",
+                    appStoreState: .waitingForReview, createdDate: calendar.date(byAdding: .day, value: -5, to: now)),
+                ReleaseVersion(
+                    id: "v-2-2", appId: appId, versionString: "1.9.0", platform: "iOS", appStoreState: .readyForSale,
+                    createdDate: calendar.date(byAdding: .day, value: -45, to: now)),
             ]
         case "app-3":
             return [
-                ReleaseVersion(id: "v-3-1", appId: appId, versionString: "0.1.0", platform: "macOS", appStoreState: .prepareForSubmission, createdDate: calendar.date(byAdding: .day, value: -1, to: now)),
+                ReleaseVersion(
+                    id: "v-3-1", appId: appId, versionString: "0.1.0", platform: "macOS",
+                    appStoreState: .prepareForSubmission, createdDate: calendar.date(byAdding: .day, value: -1, to: now)
+                )
             ]
         default:
             return []
@@ -79,10 +97,11 @@ struct MockAppStoreConnect {
                 "en-US": StoreMetadataFields(
                     subtitle: "App Store screenshot manager",
                     description: """
-                    Example Gallery helps indie developers collect, review, and organize App Store screenshots before release. Import folders, spot missing sizes, and keep each locale's screenshot set tidy.
-                    """,
+                        Example Gallery helps indie developers collect, review, and organize App Store screenshots before release. Import folders, spot missing sizes, and keep each locale's screenshot set tidy.
+                        """,
                     keywords: "screenshots,app store,release,metadata,developer",
-                    promotionalText: "Prepare localized App Store screenshots faster, with fewer last-minute upload surprises.",
+                    promotionalText:
+                        "Prepare localized App Store screenshots faster, with fewer last-minute upload surprises.",
                     supportURL: "https://example.com/support",
                     marketingURL: "https://example.com/example-gallery",
                     privacyPolicyURL: "https://example.com/privacy"
@@ -90,8 +109,8 @@ struct MockAppStoreConnect {
                 "zh-Hans": StoreMetadataFields(
                     subtitle: "App Store 截图整理与管理",
                     description: """
-                    Example Gallery 帮助独立开发者在发布前整理、检查和归类 App Store 截图。导入文件夹后，你可以快速发现缺失尺寸，并让每个语言版本的截图保持有序。
-                    """,
+                        Example Gallery 帮助独立开发者在发布前整理、检查和归类 App Store 截图。导入文件夹后，你可以快速发现缺失尺寸，并让每个语言版本的截图保持有序。
+                        """,
                     keywords: "截图,App Store,发布,元数据,开发者",
                     promotionalText: "更快准备本地化商店截图，减少提交前的临时返工。",
                     supportURL: "https://example.com/support",
@@ -101,14 +120,14 @@ struct MockAppStoreConnect {
                 "ja": StoreMetadataFields(
                     subtitle: "App Store スクリーンショット管理",
                     description: """
-                    Example Gallery は、個人開発者がリリース前に App Store スクリーンショットを整理、確認、分類するためのツールです。フォルダを読み込み、足りないサイズを見つけ、ロケールごとの素材をきれいに保てます。
-                    """,
+                        Example Gallery は、個人開発者がリリース前に App Store スクリーンショットを整理、確認、分類するためのツールです。フォルダを読み込み、足りないサイズを見つけ、ロケールごとの素材をきれいに保てます。
+                        """,
                     keywords: "スクリーンショット,App Store,リリース,メタデータ",
                     promotionalText: "ローカライズ済みのストア用スクリーンショットを、より少ない手戻りで準備できます。",
                     supportURL: "https://example.com/support",
                     marketingURL: "https://example.com/example-gallery",
                     privacyPolicyURL: "https://example.com/privacy"
-                )
+                ),
             ]
         case "v-2-1":
             return [
@@ -129,7 +148,7 @@ struct MockAppStoreConnect {
                     supportURL: "https://example.com/support",
                     marketingURL: "",
                     privacyPolicyURL: "https://example.com/privacy"
-                )
+                ),
             ]
         default:
             return [:]
@@ -200,12 +219,12 @@ final class SampleAppStoreConnectService: AppStoreConnectServicing, @unchecked S
         let notes = MockAppStoreConnect.sampleRemoteNotes(versionId: versionId)
         let metadata = MockAppStoreConnect.sampleStoreMetadata(versionId: versionId)
         return notes.keys.sorted().map { locale in
-                RemoteLocaleNote(
-                    localizationId: "mock-\(versionId)-\(locale)",
-                    locale: locale,
-                    text: notes[locale] ?? "",
-                    storeMetadata: metadata[locale] ?? .empty
-                )
+            RemoteLocaleNote(
+                localizationId: "mock-\(versionId)-\(locale)",
+                locale: locale,
+                text: notes[locale] ?? "",
+                storeMetadata: metadata[locale] ?? .empty
+            )
         }
     }
 
@@ -233,7 +252,9 @@ final class SampleAppStoreConnectService: AppStoreConnectServicing, @unchecked S
         }
     }
 
-    func updateStoreMetadataField(localizationId: String, field: StoreCopyField, value: String) async throws -> RemoteLocaleNote {
+    func updateStoreMetadataField(
+        localizationId: String, field: StoreCopyField, value: String
+    ) async throws -> RemoteLocaleNote {
         try mutateLocalization(id: localizationId) { note in
             note.storeMetadata.setValue(value, for: field)
         }
@@ -314,7 +335,8 @@ final class SampleAppStoreConnectService: AppStoreConnectServicing, @unchecked S
     func submitForReview(appId: String, versionId: String, platform: String) async throws -> String {
         _ = platform
         if var versions = versionsByApp[appId],
-           let index = versions.firstIndex(where: { $0.id == versionId }) {
+            let index = versions.firstIndex(where: { $0.id == versionId })
+        {
             versions[index] = ReleaseVersion(
                 id: versions[index].id,
                 appId: versions[index].appId,

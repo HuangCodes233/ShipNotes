@@ -1,10 +1,10 @@
-import Testing
 import Foundation
+import Testing
 @testable import ShipNotes
 
-@Suite("Phase 4 — persistence + bulk translate + onboarding")
+@Suite("Persistence, bulk translation, and onboarding")
 @MainActor
-struct Phase4Tests {
+struct SyncBehaviorTests {
     // MARK: - Sync history persistence
 
     @Test func syncRunRoundTripsThroughJSON() throws {
@@ -18,7 +18,7 @@ struct Phase4Tests {
             localeResults: [
                 "en-US": .succeeded,
                 "zh-Hans": .failed("Over character limit"),
-                "ja": .skipped
+                "ja": .skipped,
             ]
         )
         let encoded = try JSONEncoder().encode(original)
@@ -66,9 +66,11 @@ struct Phase4Tests {
         state.bootstrapWithMockData()
 
         // Clear all but one locale's text so we have empty targets.
-        guard let source = state.localeNotes.first(where: {
-            !$0.localText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }) else {
+        guard
+            let source = state.localeNotes.first(where: {
+                !$0.localText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            })
+        else {
             Issue.record("No locale with text to use as source"); return
         }
         for note in state.localeNotes where note.locale != source.locale {
@@ -81,11 +83,12 @@ struct Phase4Tests {
         state.translateAllEmptyLocales(from: source.locale)
 
         // Wait for the Task to drain.
-        #expect(await waitUntil(timeout: 5_000_000_000) {
-            emptyTargets.allSatisfy { code in
-                state.localeNotes.first(where: { $0.locale == code })?.localText == "AUTO-TRANSLATED"
-            }
-        })
+        #expect(
+            await waitUntil(timeout: 5_000_000_000) {
+                emptyTargets.allSatisfy { code in
+                    state.localeNotes.first(where: { $0.locale == code })?.localText == "AUTO-TRANSLATED"
+                }
+            })
         for code in emptyTargets {
             #expect(
                 state.localeNotes.first(where: { $0.locale == code })?.localText == "AUTO-TRANSLATED",
@@ -150,10 +153,12 @@ struct Phase4Tests {
     @Test func loadAndAttachBuildSurfacesThroughMockService() async {
         let service = MockASCService()
         service.builds = [
-            Build(id: "b-1", buildNumber: "123", marketingVersion: "1.4.0",
-                  uploadedDate: Date(), expirationDate: nil, processingState: .valid),
-            Build(id: "b-2", buildNumber: "124", marketingVersion: "1.4.0",
-                  uploadedDate: Date(), expirationDate: nil, processingState: .processing)
+            Build(
+                id: "b-1", buildNumber: "123", marketingVersion: "1.4.0",
+                uploadedDate: Date(), expirationDate: nil, processingState: .valid),
+            Build(
+                id: "b-2", buildNumber: "124", marketingVersion: "1.4.0",
+                uploadedDate: Date(), expirationDate: nil, processingState: .processing),
         ]
         let state = AppState(
             aiKeychainStore: InMemoryAIKeychainStore(),
@@ -164,7 +169,9 @@ struct Phase4Tests {
         // Use a synthesised version so we don't have to bootstrap from API.
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.4.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.4.0", platform: "iOS", appStoreState: .prepareForSubmission
+            )
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -283,7 +290,7 @@ struct Phase4Tests {
         let mock = MockAIService()
         mock.parseResult = [
             "en-US": "• AI got it from the weird folder",
-            "zh-Hans": "• AI 从奇怪的文件夹里抽出来的"
+            "zh-Hans": "• AI 从奇怪的文件夹里抽出来的",
         ]
         let state = AppState(aiService: mock, defaults: makeTestDefaults())
         state.bootstrapWithMockData()
@@ -297,7 +304,7 @@ struct Phase4Tests {
             "planning-notes.md",
             "copy-draft.md",
             "product-positioning.md",
-            "iteration-log.md"
+            "iteration-log.md",
         ] {
             try? "irrelevant body for \(name)".write(
                 to: folder.appending(path: name),
@@ -376,7 +383,11 @@ struct Phase4Tests {
         #expect(await waitUntil { state.lastError != nil })
 
         #expect(mock.lastParseText == nil)
-        #expect(state.lastError?.message == expectedLocalized("This looks like screenshot documentation, not release notes. Import screenshot folders from the Screenshots tab, or choose a release-notes file."))
+        #expect(
+            state.lastError?.message
+                == expectedLocalized(
+                    "This looks like screenshot documentation, not release notes. Import screenshot folders from the Screenshots tab, or choose a release-notes file."
+                ))
     }
 
     @Test func loadFolderSurfacesErrorWhenAINotConfiguredAndParserFails() async {
@@ -392,8 +403,9 @@ struct Phase4Tests {
         )
 
         state.loadFolder(folder)
-        #expect(await waitUntil { state.lastError != nil },
-                "Without AI configured, parser error should surface to the user")
+        #expect(
+            await waitUntil { state.lastError != nil },
+            "Without AI configured, parser error should surface to the user")
     }
 
     // MARK: - Submit for Review
@@ -423,7 +435,8 @@ struct Phase4Tests {
             appStoreService: service,
             defaults: makeTestDefaults()
         )
-        let version = ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.4.0", platform: "iOS", appStoreState: .prepareForSubmission)
+        let version = ReleaseVersion(
+            id: "v-1", appId: "app-1", versionString: "1.4.0", platform: "iOS", appStoreState: .prepareForSubmission)
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [version]
         state.selectedAppId = "app-1"
@@ -447,7 +460,9 @@ struct Phase4Tests {
         )
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.4.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.4.0", platform: "iOS", appStoreState: .prepareForSubmission
+            )
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -457,7 +472,8 @@ struct Phase4Tests {
             message: "UNEXPECTED_ERROR"
         )
         service.fetchedVersions = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.4.0", platform: "iOS", appStoreState: .waitingForReview)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.4.0", platform: "iOS", appStoreState: .waitingForReview)
         ]
 
         await state.submitSelectedVersionForReview(releaseType: .afterApproval)
@@ -471,7 +487,8 @@ struct Phase4Tests {
         let state = AppState(aiKeychainStore: InMemoryAIKeychainStore(), defaults: makeTestDefaults())
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.4.0", platform: "iOS", appStoreState: .waitingForReview)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.4.0", platform: "iOS", appStoreState: .waitingForReview)
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -494,14 +511,19 @@ struct Phase4Tests {
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
         state.localeNotes = [
-            LocaleNote(locale: "en-US", localPath: nil, remoteLocalizationId: nil, localText: "", remoteText: nil, status: .missing),
-            LocaleNote(locale: "ja", localPath: nil, remoteLocalizationId: nil, localText: "", remoteText: nil, status: .missing)
+            LocaleNote(
+                locale: "en-US", localPath: nil, remoteLocalizationId: nil, localText: "", remoteText: nil,
+                status: .missing),
+            LocaleNote(
+                locale: "ja", localPath: nil, remoteLocalizationId: nil, localText: "", remoteText: nil,
+                status: .missing),
         ]
 
         #expect(firstVersion.looksLikeFirstMarketingVersion == true)
         #expect(state.selectedVersionIsFirstRelease == true)
         #expect(state.releaseNotesReadyForReviewSubmission == true)
-        #expect(state.releaseNotesReviewChecklistLabel == expectedLocalized("First release: What's New is not required"))
+        #expect(
+            state.releaseNotesReviewChecklistLabel == expectedLocalized("First release: What's New is not required"))
     }
 
     @Test func laterReleasePreflightStillRequiresWhatsNew() {
@@ -525,13 +547,17 @@ struct Phase4Tests {
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-update"
         state.localeNotes = [
-            LocaleNote(locale: "en-US", localPath: nil, remoteLocalizationId: nil, localText: "", remoteText: nil, status: .missing)
+            LocaleNote(
+                locale: "en-US", localPath: nil, remoteLocalizationId: nil, localText: "", remoteText: nil,
+                status: .missing)
         ]
 
         #expect(updateVersion.looksLikeFirstMarketingVersion == false)
         #expect(state.selectedVersionIsFirstRelease == false)
         #expect(state.releaseNotesReadyForReviewSubmission == false)
-        #expect(state.releaseNotesReviewChecklistLabel == expectedLocalized("Locale release notes ready: %1$d / %2$d", 0, 1))
+        #expect(
+            state.releaseNotesReviewChecklistLabel == expectedLocalized("Locale release notes ready: %1$d / %2$d", 0, 1)
+        )
     }
 
     @Test func aiCounterIncrementsOnEveryAICall() async {
@@ -541,9 +567,11 @@ struct Phase4Tests {
         state.bootstrapWithMockData()
         state.resetAICallCount()
 
-        guard let source = state.localeNotes.first(where: {
-            !$0.localText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }) else {
+        guard
+            let source = state.localeNotes.first(where: {
+                !$0.localText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            })
+        else {
             Issue.record("Need a source locale"); return
         }
         // Pick a target distinct from source so translate isn't a no-op.
@@ -562,9 +590,11 @@ struct Phase4Tests {
     @Test func translateAllEmptyLocalesDoesNothingWhenAIMissing() {
         let state = AppState(aiKeychainStore: InMemoryAIKeychainStore(), defaults: makeTestDefaults())
         state.bootstrapWithMockData()
-        guard let source = state.localeNotes.first(where: {
-            !$0.localText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }) else {
+        guard
+            let source = state.localeNotes.first(where: {
+                !$0.localText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            })
+        else {
             Issue.record("No source"); return
         }
         for note in state.localeNotes where note.locale != source.locale {

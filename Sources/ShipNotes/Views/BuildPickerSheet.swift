@@ -64,7 +64,10 @@ struct BuildPickerSheet: View {
             ContentUnavailableView {
                 Label(L("No builds found"), systemImage: "shippingbox")
             } description: {
-                Text(L("Upload a build via Xcode → Product → Archive → Distribute App, or Transporter. Once Apple finishes processing, it will show up here."))
+                Text(
+                    L(
+                        "Upload a build via Xcode → Product → Archive → Distribute App, or Transporter. Once Apple finishes processing, it will show up here."
+                    ))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -139,8 +142,9 @@ struct BuildPickerSheet: View {
     /// Disable Attach when the user selects an INVALID / still-PROCESSING build.
     private var canAttachSelection: Bool {
         guard let id = selection,
-              let builds = state.selectedVersionId.flatMap({ state.buildsByVersion[$0] }),
-              let chosen = builds.first(where: { $0.id == id }) else { return false }
+            let builds = state.selectedVersionId.flatMap({ state.buildsByVersion[$0] }),
+            let chosen = builds.first(where: { $0.id == id })
+        else { return false }
         return chosen.processingState.canBeAttached
     }
 }

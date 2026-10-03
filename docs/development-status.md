@@ -1,8 +1,7 @@
 # Development status
 
-ShipNotes is an early developer preview. The [product plan](../ShipNotes_PLAN.md)
-describes intended direction; it does not establish that every planned feature
-is implemented or verified.
+ShipNotes is an early developer preview. This document tracks implemented
+capabilities and remaining verification work.
 
 ## Implemented
 
@@ -15,14 +14,15 @@ is implemented or verified.
 - Sync cancellation and stale-response guards, structured errors, progress
   reporting, persistent sync history, and recursive file watching.
 - Shared screenshot caches, efficient diff summaries, and reusable date
-  formatters. [Performance probes](performance-audit.md) describe how to measure
+  formatters. [Performance probes](performance.md) describe how to measure
   these paths without making whole-app performance claims.
 - App packaging with icon resources, ad-hoc or Developer ID signing, and optional
   notarization/stapling support.
 
 ## Verification
 
-Functional tests use doubles and synthetic fixtures. CI tests Xcode 26.3 on
+Functional tests use doubles and synthetic fixtures. CI checks Swift formatting
+on Xcode 27 and tests Xcode 26.3 on
 `macos-15` and the bundled Xcode on the `xcode-27` preview image, logging the
 actual OS, compiler, and SDK. Gitleaks scans the fetched Git history separately.
 Check [Actions](https://github.com/HuangCodes233/ShipNotes/actions) for results

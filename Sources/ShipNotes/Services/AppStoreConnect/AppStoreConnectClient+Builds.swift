@@ -11,7 +11,7 @@ extension AppStoreConnectClient {
                 URLQueryItem(name: "filter[app]", value: appId),
                 URLQueryItem(name: "filter[preReleaseVersion.version]", value: marketingVersion),
                 URLQueryItem(name: "limit", value: "50"),
-                URLQueryItem(name: "fields[builds]", value: "version,uploadedDate,expirationDate,processingState")
+                URLQueryItem(name: "fields[builds]", value: "version,uploadedDate,expirationDate,processingState"),
             ]
         )
         let builds = resources.map { Self.buildFromResource($0, marketingVersion: marketingVersion) }
@@ -19,14 +19,18 @@ extension AppStoreConnectClient {
     }
 
     func fetchAllBuilds(appId: String) async throws -> [Build] {
-        var url = try makeURL(path: "builds", queryItems: [
-            URLQueryItem(name: "filter[app]", value: appId),
-            URLQueryItem(name: "include", value: "preReleaseVersion"),
-            URLQueryItem(name: "limit", value: "200"),
-            URLQueryItem(name: "sort", value: "-uploadedDate"),
-            URLQueryItem(name: "fields[builds]", value: "version,uploadedDate,expirationDate,processingState,preReleaseVersion"),
-            URLQueryItem(name: "fields[preReleaseVersions]", value: "version,platform")
-        ])
+        var url = try makeURL(
+            path: "builds",
+            queryItems: [
+                URLQueryItem(name: "filter[app]", value: appId),
+                URLQueryItem(name: "include", value: "preReleaseVersion"),
+                URLQueryItem(name: "limit", value: "200"),
+                URLQueryItem(name: "sort", value: "-uploadedDate"),
+                URLQueryItem(
+                    name: "fields[builds]",
+                    value: "version,uploadedDate,expirationDate,processingState,preReleaseVersion"),
+                URLQueryItem(name: "fields[preReleaseVersions]", value: "version,platform"),
+            ])
         var builds: [Build] = []
         var pageCount = 0
 
@@ -39,20 +43,22 @@ extension AppStoreConnectClient {
                 }
             )
 
-            builds.append(contentsOf: response.data.map { resource in
-                let prereleaseID = resource.relationships?.preReleaseVersion?.data?.id
-                let prerelease = prereleaseID.flatMap { prereleaseVersions[$0] } ?? nil
-                return Self.buildFromResource(
-                    resource,
-                    marketingVersion: prerelease?.version,
-                    platform: prerelease?.platform
-                )
-            })
+            builds.append(
+                contentsOf: response.data.map { resource in
+                    let prereleaseID = resource.relationships?.preReleaseVersion?.data?.id
+                    let prerelease = prereleaseID.flatMap { prereleaseVersions[$0] } ?? nil
+                    return Self.buildFromResource(
+                        resource,
+                        marketingVersion: prerelease?.version,
+                        platform: prerelease?.platform
+                    )
+                })
             pageCount += 1
 
             guard pageCount < 20,
-                  let next = response.links?.next,
-                  let nextURL = URL(string: next) else {
+                let next = response.links?.next,
+                let nextURL = URL(string: next)
+            else {
                 return builds.sorted {
                     ($0.uploadedDate ?? .distantPast) > ($1.uploadedDate ?? .distantPast)
                 }
@@ -62,9 +68,11 @@ extension AppStoreConnectClient {
     }
 
     func fetchAttachedBuild(versionId: String) async throws -> Build? {
-        let url = try makeURL(path: "appStoreVersions/\(versionId)/build", queryItems: [
-            URLQueryItem(name: "fields[builds]", value: "version,uploadedDate,expirationDate,processingState")
-        ])
+        let url = try makeURL(
+            path: "appStoreVersions/\(versionId)/build",
+            queryItems: [
+                URLQueryItem(name: "fields[builds]", value: "version,uploadedDate,expirationDate,processingState")
+            ])
         let request = try await makeRequest(url: url)
         do {
             // Apple returns `{"data": null}` for an un-attached version, not 404,
@@ -93,7 +101,6 @@ extension AppStoreConnectClient {
             body: body
         )
     }
-
 
     static func buildFromResource(
         _ resource: ASCBuildResource,

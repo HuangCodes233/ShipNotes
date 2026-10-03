@@ -45,7 +45,9 @@ struct StoreCopyWorkspaceView: View {
             guard let url = urls.first else { return false }
             state.loadStoreCopySource(url)
             return true
-        } isTargeted: { isDropTargeted = $0 }
+        } isTargeted: {
+            isDropTargeted = $0
+        }
         .dropZoneOverlay(isTargeted: isDropTargeted)
         .onChange(of: state.selectedStoreCopyLocale) { _, _ in
             comparedStoreCopyField = nil
@@ -185,7 +187,9 @@ struct StoreCopyWorkspaceView: View {
             .controlSize(.small)
             .secondaryGlassButton()
             .disabled(!state.isAIConfigured || state.isAIRunning || state.selectedStoreCopy == nil)
-            .help(state.isAIConfigured ? L("Optimize the selected locale's store copy with AI.") : L("Configure AI in Settings first."))
+            .help(
+                state.isAIConfigured
+                    ? L("Optimize the selected locale's store copy with AI.") : L("Configure AI in Settings first."))
 
             Button {
                 if let locale = state.selectedStoreCopyLocale {
@@ -246,10 +250,13 @@ struct StoreCopyWorkspaceView: View {
 
     private var localeTable: some View {
         @Bindable var state = state
-        return Table(state.storeCopyLocales.sorted(using: sortOrder), selection: Binding<String?>(
-            get: { state.selectedStoreCopyLocale },
-            set: { if let code = $0 { state.selectStoreCopyLocale(code) } }
-        ), sortOrder: $sortOrder) {
+        return Table(
+            state.storeCopyLocales.sorted(using: sortOrder),
+            selection: Binding<String?>(
+                get: { state.selectedStoreCopyLocale },
+                set: { if let code = $0 { state.selectStoreCopyLocale(code) } }
+            ), sortOrder: $sortOrder
+        ) {
             TableColumn(L("Locale"), value: \.locale) { copy in
                 Text(copy.locale)
                     .font(.callout.monospaced())
@@ -446,7 +453,10 @@ struct StoreCopyWorkspaceView: View {
             ContentUnavailableView {
                 Label(L("No Store Copy Selected"), systemImage: "text.quote")
             } description: {
-                Text(L("Select a locale from the left table to edit App Store description, keywords, and promotional URLs."))
+                Text(
+                    L(
+                        "Select a locale from the left table to edit App Store description, keywords, and promotional URLs."
+                    ))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -461,7 +471,9 @@ struct StoreCopyWorkspaceView: View {
     }
 
     private func canSyncField(_ field: StoreCopyField, in copy: StoreCopyLocale) -> Bool {
-        guard field.isVersionLocalizationField, !state.isSyncing, state.selectedVersion?.canEditMetadata == true else { return false }
+        guard field.isVersionLocalizationField, !state.isSyncing, state.selectedVersion?.canEditMetadata == true else {
+            return false
+        }
         let localValue = copy.localMetadata.value(for: field)
         let remoteValue = copy.remoteMetadata?.value(for: field) ?? ""
         guard localValue != remoteValue else { return false }

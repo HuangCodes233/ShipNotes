@@ -1,5 +1,5 @@
-import Testing
 import Foundation
+import Testing
 @testable import ShipNotes
 
 /// Verifies that AnthropicService can recover when an Anthropic-compatible
@@ -10,8 +10,8 @@ import Foundation
 struct AnthropicTextFallbackTests {
     @Test func parsesRawJSONInTextBlockWhenToolUseMissing() async throws {
         let raw = """
-        {"content":[{"type":"text","text":"{\\"locales\\":{\\"en-US\\":\\"• AI extracted body\\"}}"}]}
-        """
+            {"content":[{"type":"text","text":"{\\"locales\\":{\\"en-US\\":\\"• AI extracted body\\"}}"}]}
+            """
         let response = try JSONSerialization.jsonObject(with: raw.data(using: .utf8)!) as! [String: Any]
         let json = try AnthropicService.testHook_extractToolInput(response, expectedName: "submit_release_notes")
         let locales = json["locales"] as? [String: String] ?? [:]
@@ -21,8 +21,8 @@ struct AnthropicTextFallbackTests {
     @Test func parsesJSONInFencedCodeBlock() async throws {
         // Some proxies prefix the JSON with a Markdown ```json fence.
         let raw = """
-        {"content":[{"type":"text","text":"```json\\n{\\"translated_text\\":\\"翻译后的内容\\"}\\n```"}]}
-        """
+            {"content":[{"type":"text","text":"```json\\n{\\"translated_text\\":\\"翻译后的内容\\"}\\n```"}]}
+            """
         let response = try JSONSerialization.jsonObject(with: raw.data(using: .utf8)!) as! [String: Any]
         let json = try AnthropicService.testHook_extractToolInput(response, expectedName: "submit_translation")
         #expect(json["translated_text"] as? String == "翻译后的内容")
@@ -31,8 +31,8 @@ struct AnthropicTextFallbackTests {
     @Test func extractsJSONFromProseSurroundedText() async throws {
         // Some proxies wrap the JSON in conversational prose.
         let raw = """
-        {"content":[{"type":"text","text":"Sure, here's the translation:\\n\\n{\\"translated_text\\":\\"翻译后的内容\\"}\\n\\nLet me know if you need anything else."}]}
-        """
+            {"content":[{"type":"text","text":"Sure, here's the translation:\\n\\n{\\"translated_text\\":\\"翻译后的内容\\"}\\n\\nLet me know if you need anything else."}]}
+            """
         let response = try JSONSerialization.jsonObject(with: raw.data(using: .utf8)!) as! [String: Any]
         let json = try AnthropicService.testHook_extractToolInput(response, expectedName: "submit_translation")
         #expect(json["translated_text"] as? String == "翻译后的内容")
@@ -40,11 +40,11 @@ struct AnthropicTextFallbackTests {
 
     @Test func realToolUseStillPreferredWhenPresent() async throws {
         let raw = """
-        {"content":[
-            {"type":"text","text":"{\\"locales\\":{\\"en-US\\":\\"WRONG fallback\\"}}"},
-            {"type":"tool_use","name":"submit_release_notes","input":{"locales":{"en-US":"CORRECT tool_use"}}}
-        ]}
-        """
+            {"content":[
+                {"type":"text","text":"{\\"locales\\":{\\"en-US\\":\\"WRONG fallback\\"}}"},
+                {"type":"tool_use","name":"submit_release_notes","input":{"locales":{"en-US":"CORRECT tool_use"}}}
+            ]}
+            """
         let response = try JSONSerialization.jsonObject(with: raw.data(using: .utf8)!) as! [String: Any]
         let json = try AnthropicService.testHook_extractToolInput(response, expectedName: "submit_release_notes")
         let locales = json["locales"] as? [String: String] ?? [:]

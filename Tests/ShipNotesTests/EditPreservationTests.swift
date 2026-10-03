@@ -33,9 +33,11 @@ struct EditPreservationTests {
         #expect(await waitUntil { !state.isAIRunning })
 
         #expect(state.localeNotes.first { $0.locale == target }?.localText == "Typed by the user")
-        #expect(state.lastError?.message == expectedLocalized(
-            "%@ was edited while AI was translating, so the translation was not applied.", target
-        ))
+        #expect(
+            state.lastError?.message
+                == expectedLocalized(
+                    "%@ was edited while AI was translating, so the translation was not applied.", target
+                ))
     }
 
     @Test func bulkTranslationSkipsLocalesFilledWhileItRan() async {
@@ -63,7 +65,9 @@ struct EditPreservationTests {
         let ai = MockAIService()
         ai.optimizeDelayNanoseconds = 200_000_000
         let state = makeState(ai: ai)
-        guard let locale = state.storeCopyLocales.first?.locale else { Issue.record("Sample data needs store copy"); return }
+        guard let locale = state.storeCopyLocales.first?.locale else {
+            Issue.record("Sample data needs store copy"); return
+        }
 
         state.optimizeStoreCopyLocale(locale)
         #expect(await waitUntil { state.isAIRunning })
@@ -77,7 +81,9 @@ struct EditPreservationTests {
 
     @Test func reloadingNotesKeepsTheSelectedLocale() {
         let state = makeState(ai: MockAIService())
-        guard let second = state.localeNotes.dropFirst().first?.locale else { Issue.record("Sample data needs two locales"); return }
+        guard let second = state.localeNotes.dropFirst().first?.locale else {
+            Issue.record("Sample data needs two locales"); return
+        }
         state.selectLocale(second)
 
         state.loadMockNotesForCurrentVersion()

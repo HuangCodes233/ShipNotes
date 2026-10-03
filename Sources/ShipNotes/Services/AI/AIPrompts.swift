@@ -35,12 +35,13 @@ enum AIPrompts {
         versionString: String?
     ) -> String {
         var prompt = """
-        App name: \(appName)
-        Version: \(versionString ?? "(not specified)")
-        Default locale if the text has no locale marker: \(defaultLocale ?? "(none)")
-        """
+            App name: \(appName)
+            Version: \(versionString ?? "(not specified)")
+            Default locale if the text has no locale marker: \(defaultLocale ?? "(none)")
+            """
         if !knownRemoteLocales.isEmpty {
-            prompt += "\nKnown App Store Connect locales for this app: \(knownRemoteLocales.sorted().joined(separator: ", "))"
+            prompt +=
+                "\nKnown App Store Connect locales for this app: \(knownRemoteLocales.sorted().joined(separator: ", "))"
         }
         prompt += "\n\n--- BEGIN LOCAL FILES ---\n"
         prompt += text
@@ -119,7 +120,8 @@ enum AIPrompts {
             prompt += "currentVersion: (none — pick the latest version section)\n"
         }
         if !knownRemoteLocales.isEmpty {
-            prompt += "App Store Connect already has these locales enabled for this app, so prefer extracting them when present: \(knownRemoteLocales.sorted().joined(separator: ", "))\n"
+            prompt +=
+                "App Store Connect already has these locales enabled for this app, so prefer extracting them when present: \(knownRemoteLocales.sorted().joined(separator: ", "))\n"
         }
         prompt += "\n--- BEGIN RELEASE NOTES FILE ---\n"
         prompt += text

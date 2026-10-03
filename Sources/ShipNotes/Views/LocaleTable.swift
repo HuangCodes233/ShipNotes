@@ -8,10 +8,13 @@ struct LocaleTable: View {
     var body: some View {
         @Bindable var state = state
 
-        Table(state.localeNotes.sorted(using: sortOrder), selection: Binding<String?>(
-            get: { state.selectedLocale },
-            set: { if let code = $0 { state.selectLocale(code) } }
-        ), sortOrder: $sortOrder) {
+        Table(
+            state.localeNotes.sorted(using: sortOrder),
+            selection: Binding<String?>(
+                get: { state.selectedLocale },
+                set: { if let code = $0 { state.selectLocale(code) } }
+            ), sortOrder: $sortOrder
+        ) {
             TableColumn(L("Locale"), value: \.locale) { note in
                 HStack(spacing: 6) {
                     Text(note.locale).font(.callout.monospaced())
@@ -75,7 +78,8 @@ struct LocaleTable: View {
                 } label: {
                     Label(L("Sync This Locale Only"), systemImage: "icloud.and.arrow.up")
                 }
-                .disabled(state.isLoadingRemote || state.isSyncing || !(state.selectedVersion?.canEditMetadata ?? false))
+                .disabled(
+                    state.isLoadingRemote || state.isSyncing || !(state.selectedVersion?.canEditMetadata ?? false))
 
                 Divider()
 
@@ -98,7 +102,11 @@ struct LocaleTable: View {
                         $0.localText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     }
                     Menu {
-                        ForEach(state.localeNotes.filter { !$0.localText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) { source in
+                        ForEach(
+                            state.localeNotes.filter {
+                                !$0.localText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            }
+                        ) { source in
                             Button(L("From %@", source.locale)) {
                                 state.translateAllEmptyLocales(from: source.locale)
                             }
@@ -108,7 +116,8 @@ struct LocaleTable: View {
                     }
                     .disabled(state.isAIRunning || !hasEmptyTargets)
                 } else {
-                    Button {} label: {
+                    Button {
+                    } label: {
                         Label(L("AI Translate (configure in Settings)"), systemImage: "wand.and.stars")
                     }
                     .disabled(true)

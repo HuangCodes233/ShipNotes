@@ -1,42 +1,7 @@
 import Foundation
-import Observation
 #if canImport(AppKit)
 import AppKit
 #endif
-
-internal struct ScreenshotCoverageGroupsCacheKey: Hashable {
-    let locales: [String]
-    // Value snapshots share collection storage until it changes. Avoid rebuilding
-    // fingerprints and sorting overrides on every cached UI read, and include all
-    // asset fields so rescans also refresh dimensions and URLs.
-    let assets: [ScreenshotAsset]
-    let localeOverrides: [String: String]
-    let sharedAssetIDs: Set<String>
-}
-
-internal struct ScreenshotCoverageGroupsCache {
-    let key: ScreenshotCoverageGroupsCacheKey
-    let groups: [ScreenshotLocaleGroup]
-    /// Canonical locale of every scanned asset (`nil` = unassigned), resolved
-    /// once per rebuild. Path-based locale resolution is the expensive part of
-    /// coverage, and toolbar/AI-matching reads used to redo it per render.
-    let localeByAssetID: [String: String?]
-}
-
-internal struct ScreenshotIssuesCacheKey: Hashable {
-    let coverageKey: ScreenshotCoverageGroupsCacheKey
-    let requiredGroups: [ScreenshotSlotRequirement]
-}
-
-internal struct ScreenshotIssuesCache {
-    let key: ScreenshotIssuesCacheKey
-    let issues: [ScreenshotIssue]
-    let blockingIssueCount: Int
-    let warningCount: Int
-    let missingRequirementsByLocale: [String: [ScreenshotSlotRequirement]]
-    let visibleScreenshotSlots: [ScreenshotDeviceSlot]
-    let aiClassificationCandidates: [ScreenshotAsset]
-}
 
 @MainActor
 extension AppState {
@@ -61,7 +26,8 @@ extension AppState {
             do {
                 let work = Task.detached(priority: .userInitiated) {
                     let scan = try ScreenshotScanner().scan(url: url)
-                    let detection = requirementKey != nil
+                    let detection =
+                        requirementKey != nil
                         ? ScreenshotIPadSupportDetector.detect(from: url)
                         : nil
                     return (scan, detection)
@@ -93,7 +59,8 @@ extension AppState {
                 // first coverage group (a version locale, not the raw folder
                 // guess, so toolbar actions target the group on screen).
                 let groups = screenshotCoverageGroups
-                selectedScreenshotLocale = groups.contains { $0.locale == previousLocale }
+                selectedScreenshotLocale =
+                    groups.contains { $0.locale == previousLocale }
                     ? previousLocale
                     : (groups.first { !$0.isUnassigned } ?? groups.first)?.locale
                 reconcileScreenshotOrder()
@@ -110,7 +77,7 @@ extension AppState {
         Task { await classifyScreenshotsWithAI() }
     }
 
-    internal func classifyScreenshotsWithAI() async {
+    func classifyScreenshotsWithAI() async {
         guard visionAIService.isConfigured else {
             setError(L("Configure a vision AI model in Settings before matching screenshots."))
             return
@@ -169,7 +136,8 @@ extension AppState {
             candidateAssetIDs: Set(assets.map(\.id))
         )
         if applied > 0 {
-            screenshotUploadSummary = L("AI matched %d screenshot(s). Review the locale coverage before previewing upload.", applied)
+            screenshotUploadSummary = L(
+                "AI matched %d screenshot(s). Review the locale coverage before previewing upload.", applied)
         } else if failure == nil {
             screenshotUploadSummary = L("AI did not find any screenshot locale matches.")
         }
@@ -185,7 +153,7 @@ extension AppState {
         return orderedScreenshotAssets(assets, locale: locale, slot: slot)
     }
 
-    internal func orderedScreenshotAssets(
+    func orderedScreenshotAssets(
         _ assets: [ScreenshotAsset],
         locale: String,
         slot: ScreenshotDeviceSlot?
@@ -203,7 +171,7 @@ extension AppState {
         }
     }
 
-    internal func effectiveScreenshotAssets(locale: String) -> [ScreenshotAsset] {
+    func effectiveScreenshotAssets(locale: String) -> [ScreenshotAsset] {
         guard let scan = screenshotScan else { return [] }
         if let group = screenshotCoverageGroups.first(where: { !$0.isUnassigned && $0.locale == locale }) {
             return group.assets
@@ -215,8 +183,10 @@ extension AppState {
             let directSlots = Set(directAssets.compactMap(\.deviceSlot))
             let sharedAssets = scan.assets.filter { asset in
                 guard let assetLocale = canonicalScreenshotLocale(for: asset),
-                      languageCode(for: assetLocale) == language,
-                      screenshotAISharedAssetIDs.contains(asset.id) || screenshotAsset(asset, hasGenericLanguageHint: language) else {
+                    languageCode(for: assetLocale) == language,
+                    screenshotAISharedAssetIDs.contains(asset.id)
+                        || screenshotAsset(asset, hasGenericLanguageHint: language)
+                else {
                     return false
                 }
                 if let slot = asset.deviceSlot, directSlots.contains(slot) {
@@ -229,7 +199,7 @@ extension AppState {
         return uniqueScreenshotAssets(assets)
     }
 
-    internal func screenshotCoverageGroupsCacheKey(
+    func screenshotCoverageGroupsCacheKey(
         scan: ScreenshotScan,
         locales: [String]
     ) -> ScreenshotCoverageGroupsCacheKey {
@@ -241,14 +211,7 @@ extension AppState {
         )
     }
 
-    internal func makeScreenshotCoverageGroups(
-        scan: ScreenshotScan,
-        locales: [String]
-    ) -> [ScreenshotLocaleGroup] {
-        makeScreenshotCoverage(scan: scan, locales: locales).groups
-    }
-
-    internal func makeScreenshotCoverage(
+    func makeScreenshotCoverage(
         scan: ScreenshotScan,
         locales: [String]
     ) -> (groups: [ScreenshotLocaleGroup], localeByAssetID: [String: String?]) {
@@ -268,7 +231,9 @@ extension AppState {
             }
             directByLocale[locale, default: []].append(asset)
             if let language = sharedScreenshotLanguage(for: locale),
-               screenshotAISharedAssetIDs.contains(asset.id) || screenshotAsset(asset, hasGenericLanguageHint: language) {
+                screenshotAISharedAssetIDs.contains(asset.id)
+                    || screenshotAsset(asset, hasGenericLanguageHint: language)
+            {
                 sharedByLanguage[language, default: []].append(asset)
             }
         }
@@ -285,15 +250,17 @@ extension AppState {
                     assets.append(asset)
                 }
             }
-            groups.append(ScreenshotLocaleGroup(locale: locale, assets: uniqueScreenshotAssets(assets), isUnassigned: false))
+            groups.append(
+                ScreenshotLocaleGroup(locale: locale, assets: uniqueScreenshotAssets(assets), isUnassigned: false))
         }
 
         if !unassignedAssets.isEmpty {
-            groups.append(ScreenshotLocaleGroup(
-                locale: ScreenshotScan.unassignedLocaleDisplayName,
-                assets: unassignedAssets.sorted(by: screenshotAssetSort),
-                isUnassigned: true
-            ))
+            groups.append(
+                ScreenshotLocaleGroup(
+                    locale: ScreenshotScan.unassignedLocaleDisplayName,
+                    assets: unassignedAssets.sorted(by: screenshotAssetSort),
+                    isUnassigned: true
+                ))
         } else if let unassigned = scan.localeGroups.first(where: { $0.isUnassigned }) {
             groups.append(unassigned)
         }
@@ -308,7 +275,7 @@ extension AppState {
         return resolveScreenshotLocale(rawLocale, allowedLocales: allowedLocales)
     }
 
-    internal func canonicalScreenshotLocale(for asset: ScreenshotAsset) -> String? {
+    func canonicalScreenshotLocale(for asset: ScreenshotAsset) -> String? {
         // Reading the coverage groups refreshes the cache when inputs changed.
         _ = screenshotCoverageGroups
         if let cached = screenshotCoverageGroupsCache?.localeByAssetID[asset.id] {
@@ -339,7 +306,7 @@ extension AppState {
         return nil
     }
 
-    internal func resolveScreenshotLocale(_ rawLocale: String, allowedLocales: [String]) -> String? {
+    func resolveScreenshotLocale(_ rawLocale: String, allowedLocales: [String]) -> String? {
         let normalized = normalizedScreenshotLocale(rawLocale)
         guard !normalized.isEmpty else { return nil }
         let allowed = Set(allowedLocales)
@@ -352,7 +319,8 @@ extension AppState {
 
         guard let language = languageCode(for: normalized) else { return nil }
         if let defaultLocale = sharedScreenshotLanguageDefaults[language],
-           allowed.contains(defaultLocale) {
+            allowed.contains(defaultLocale)
+        {
             return defaultLocale
         }
 
@@ -363,11 +331,13 @@ extension AppState {
         return nil
     }
 
-    internal func normalizedScreenshotLocale(_ rawLocale: String) -> String {
-        let cleaned = rawLocale
+    func normalizedScreenshotLocale(_ rawLocale: String) -> String {
+        let cleaned =
+            rawLocale
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "_", with: "-")
-        let parts = cleaned
+        let parts =
+            cleaned
             .split(separator: "-", omittingEmptySubsequences: true)
             .map(String.init)
         guard let language = parts.first?.lowercased() else { return "" }
@@ -380,14 +350,14 @@ extension AppState {
         return ([language] + regionParts).joined(separator: "-")
     }
 
-    internal func languageCode(for locale: String) -> String? {
+    func languageCode(for locale: String) -> String? {
         normalizedScreenshotLocale(locale)
             .split(separator: "-")
             .first
             .map { String($0).lowercased() }
     }
 
-    internal func uniqueLocales(_ locales: [String]) -> [String] {
+    func uniqueLocales(_ locales: [String]) -> [String] {
         var seen = Set<String>()
         var result: [String] = []
         for locale in locales {
@@ -398,13 +368,13 @@ extension AppState {
         return result
     }
 
-    internal func sharedScreenshotLanguage(for locale: String) -> String? {
+    func sharedScreenshotLanguage(for locale: String) -> String? {
         let language = locale.split(separator: "-").first.map(String.init)?.lowercased() ?? locale.lowercased()
         guard sharedScreenshotLanguageDefaults[language] != nil else { return nil }
         return language
     }
 
-    internal func screenshotAsset(_ asset: ScreenshotAsset, hasGenericLanguageHint language: String) -> Bool {
+    func screenshotAsset(_ asset: ScreenshotAsset, hasGenericLanguageHint language: String) -> Bool {
         let pathParts = asset.relativePath
             .split(separator: "/")
             .dropLast()
@@ -422,7 +392,7 @@ extension AppState {
         return baseName.components(separatedBy: separators).contains(language)
     }
 
-    internal func uniqueScreenshotAssets(_ assets: [ScreenshotAsset]) -> [ScreenshotAsset] {
+    func uniqueScreenshotAssets(_ assets: [ScreenshotAsset]) -> [ScreenshotAsset] {
         var seen = Set<String>()
         var result: [ScreenshotAsset] = []
         for asset in assets where seen.insert(asset.id).inserted {
@@ -431,12 +401,12 @@ extension AppState {
         return result
     }
 
-    internal func screenshotKnownLocalesForAI() -> [String] {
+    func screenshotKnownLocalesForAI() -> [String] {
         let locales = screenshotCoverageLocales
         return locales.isEmpty ? LocaleMapper.appStoreLocales : locales
     }
 
-    internal func applyScreenshotLocaleAssignments(
+    func applyScreenshotLocaleAssignments(
         _ assignments: [ScreenshotLocaleAssignment],
         candidateAssetIDs: Set<String>
     ) -> Int {
@@ -466,8 +436,9 @@ extension AppState {
         var assignedCounts: [String: Int] = [:]
         for asset in scan.assets {
             guard asset.status == .ready,
-                  let locale = localeByAssetID[asset.id] ?? nil,
-                  let slot = asset.deviceSlot else {
+                let locale = localeByAssetID[asset.id] ?? nil,
+                let slot = asset.deviceSlot
+            else {
                 continue
             }
             assignedCounts[assignmentCountKey(locale: locale, slot: slot), default: 0] += 1
@@ -477,14 +448,15 @@ extension AppState {
         var firstChangedLocale: String?
         let updatedAssets = scan.assets.map { asset in
             guard candidateAssetIDs.contains(asset.id),
-                  let locale = resolvedByAssetID[asset.id],
-                  let slot = asset.deviceSlot,
-                  (localeByAssetID[asset.id] ?? nil) != locale,
-                  shouldApplyAIScreenshotAssignment(
-                      asset,
-                      to: locale,
-                      assignedCount: assignedCounts[assignmentCountKey(locale: locale, slot: slot), default: 0]
-                  ) else {
+                let locale = resolvedByAssetID[asset.id],
+                let slot = asset.deviceSlot,
+                (localeByAssetID[asset.id] ?? nil) != locale,
+                shouldApplyAIScreenshotAssignment(
+                    asset,
+                    to: locale,
+                    assignedCount: assignedCounts[assignmentCountKey(locale: locale, slot: slot), default: 0]
+                )
+            else {
                 return asset
             }
             changedCount += 1
@@ -521,29 +493,32 @@ extension AppState {
         screenshotCoverageGroupsCache = nil
         screenshotIssuesCache = nil
         if selectedScreenshotLocale == ScreenshotScan.unassignedLocaleDisplayName,
-           let firstChangedLocale {
+            let firstChangedLocale
+        {
             selectedScreenshotLocale = firstChangedLocale
         }
         reconcileScreenshotOrder()
         return changedCount
     }
 
-    internal func shouldApplyAIScreenshotAssignment(_ asset: ScreenshotAsset, to locale: String, assignedCount: Int) -> Bool {
+    func shouldApplyAIScreenshotAssignment(_ asset: ScreenshotAsset, to locale: String, assignedCount: Int) -> Bool {
         guard asset.status == .ready, asset.deviceSlot != nil else { return false }
         return assignedCount < 10
     }
 
-    internal func rememberAIScreenshotAssignment(_ asset: ScreenshotAsset, locale: String, wasUnassigned: Bool) {
+    func rememberAIScreenshotAssignment(_ asset: ScreenshotAsset, locale: String, wasUnassigned: Bool) {
         screenshotAILocaleOverrides[asset.id] = locale
         if wasUnassigned, sharedScreenshotLanguage(for: locale) != nil {
             screenshotAISharedAssetIDs.insert(asset.id)
         }
     }
 
-    internal func resolveAIScreenshotLocale(_ rawLocale: String, allowed: Set<String>) -> String? {
-        resolveScreenshotLocale(rawLocale, allowedLocales: allowed.sorted {
-            $0.localizedStandardCompare($1) == .orderedAscending
-        })
+    func resolveAIScreenshotLocale(_ rawLocale: String, allowed: Set<String>) -> String? {
+        resolveScreenshotLocale(
+            rawLocale,
+            allowedLocales: allowed.sorted {
+                $0.localizedStandardCompare($1) == .orderedAscending
+            })
     }
 
     func missingScreenshotRequirements(locale: String) -> [ScreenshotSlotRequirement] {

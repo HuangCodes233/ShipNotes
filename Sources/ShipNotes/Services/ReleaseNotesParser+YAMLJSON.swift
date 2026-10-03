@@ -42,6 +42,7 @@ extension ReleaseNotesParser {
             locales[resolved] = value
             sourceFiles[resolved] = url
         }
-        return ParsedReleaseNotes(version: version, locales: locales, sourceFiles: sourceFiles, sourceDescription: url.path)
+        return ParsedReleaseNotes(
+            version: version, locales: locales, sourceFiles: sourceFiles, sourceDescription: url.path)
     }
 }

@@ -153,7 +153,8 @@ extension AppState {
         isLoadingAds = true
         defer { isLoadingAds = false }
         do {
-            let eligibility = try await service.checkAppEligibility(adamId: request.adamId, countries: request.countries)
+            let eligibility = try await service.checkAppEligibility(
+                adamId: request.adamId, countries: request.countries)
             guard eligibility.isEligible else {
                 setError(
                     eligibility.reasons.first ?? L("This app is not eligible for Apple Ads."),
@@ -173,7 +174,7 @@ extension AppState {
         }
     }
 
-    internal func bootstrapAppleAdsFromKeychainInBackground() async {
+    func bootstrapAppleAdsFromKeychainInBackground() async {
         let store = appleAdsCredentialStore
         let loadResult = await Task.detached(priority: .userInitiated) { () -> AppleAdsLoadResult in
             do {
@@ -198,7 +199,7 @@ extension AppState {
         }
     }
 
-    internal func resetAppleAdsSelection() {
+    func resetAppleAdsSelection() {
         adsRefreshID = UUID()
         adsDetailsID = UUID()
         adsKeywordsID = UUID()
@@ -216,7 +217,7 @@ extension AppState {
         offerPromoteAfterSubmit = false
     }
 
-    internal func installSampleAppleAds() {
+    func installSampleAppleAds() {
         resetAppleAdsSelection()
         appleAdsService = SampleAppleAdsService()
         isUsingSampleAds = true
@@ -236,7 +237,7 @@ extension AppState {
         Task { await refreshAppleAdsForSelectedApp() }
     }
 
-    internal func connectAppleAds(credentials: AppleAdsCredentials) async {
+    func connectAppleAds(credentials: AppleAdsCredentials) async {
         resetAppleAdsSelection()
         lastError = nil
         do {
@@ -279,7 +280,7 @@ extension AppState {
         }
     }
 
-    internal func refreshAppleAdsForSelectedApp() async {
+    func refreshAppleAdsForSelectedApp() async {
         let requestID = UUID()
         adsRefreshID = requestID
         let accountID = selectedAppleAdsAccountId
@@ -293,7 +294,9 @@ extension AppState {
         defer { isLoadingAds = false }
         do {
             let campaigns = try await service.queryCampaigns(adamId: adamId)
-            guard !Task.isCancelled, adsRefreshID == requestID, selectedAppId == adamId, selectedAppleAdsAccountId == accountID else { return }
+            guard !Task.isCancelled, adsRefreshID == requestID, selectedAppId == adamId,
+                selectedAppleAdsAccountId == accountID
+            else { return }
             appleAdsCampaigns = campaigns
             // Metrics don't depend on the selected campaign's details; fetch
             // them while the details load instead of afterwards. An
@@ -321,7 +324,9 @@ extension AppState {
                 }
             }
             let metrics = try await reportTask.value
-            guard !Task.isCancelled, adsRefreshID == requestID, selectedAppId == adamId, selectedAppleAdsAccountId == accountID else { return }
+            guard !Task.isCancelled, adsRefreshID == requestID, selectedAppId == adamId,
+                selectedAppleAdsAccountId == accountID
+            else { return }
             let budgetCurrencies = Dictionary(
                 campaigns.compactMap { campaign in campaign.dailyBudgetCurrency.map { (campaign.id, $0) } },
                 uniquingKeysWith: { first, _ in first }
@@ -338,12 +343,14 @@ extension AppState {
                 uniquingKeysWith: { _, new in new }
             )
         } catch {
-            guard !Task.isCancelled, adsRefreshID == requestID, selectedAppId == adamId, selectedAppleAdsAccountId == accountID else { return }
+            guard !Task.isCancelled, adsRefreshID == requestID, selectedAppId == adamId,
+                selectedAppleAdsAccountId == accountID
+            else { return }
             handleError(error)
         }
     }
 
-    internal func refreshAppleAdsCampaignDetails() async {
+    func refreshAppleAdsCampaignDetails() async {
         guard let service = appleAdsService, let campaignId = selectedAppleAdsCampaignId else { return }
         let requestID = UUID()
         adsDetailsID = requestID
@@ -351,7 +358,9 @@ extension AppState {
         let accountID = selectedAppleAdsAccountId
         do {
             let groups = try await service.queryAdGroups(campaignId: campaignId)
-            guard !Task.isCancelled, adsDetailsID == requestID, selectedAppleAdsCampaignId == campaignId, selectedAppId == appID, selectedAppleAdsAccountId == accountID else { return }
+            guard !Task.isCancelled, adsDetailsID == requestID, selectedAppleAdsCampaignId == campaignId,
+                selectedAppId == appID, selectedAppleAdsAccountId == accountID
+            else { return }
             appleAdsAdGroups = groups
             if let selected = selectedAppleAdsAdGroupId, groups.contains(where: { $0.id == selected }) {
                 await refreshAppleAdsKeywords()
@@ -365,15 +374,19 @@ extension AppState {
                 start: dates.start,
                 end: dates.end
             )
-            guard !Task.isCancelled, adsDetailsID == requestID, selectedAppleAdsCampaignId == campaignId, selectedAppId == appID, selectedAppleAdsAccountId == accountID else { return }
+            guard !Task.isCancelled, adsDetailsID == requestID, selectedAppleAdsCampaignId == campaignId,
+                selectedAppId == appID, selectedAppleAdsAccountId == accountID
+            else { return }
             appleAdsSearchTerms = terms
         } catch {
-            guard !Task.isCancelled, adsDetailsID == requestID, selectedAppleAdsCampaignId == campaignId, selectedAppId == appID, selectedAppleAdsAccountId == accountID else { return }
+            guard !Task.isCancelled, adsDetailsID == requestID, selectedAppleAdsCampaignId == campaignId,
+                selectedAppId == appID, selectedAppleAdsAccountId == accountID
+            else { return }
             handleError(error)
         }
     }
 
-    internal func refreshAppleAdsKeywords() async {
+    func refreshAppleAdsKeywords() async {
         let requestID = UUID()
         adsKeywordsID = requestID
         let campaignID = selectedAppleAdsCampaignId
@@ -385,15 +398,19 @@ extension AppState {
         }
         do {
             let keywords = try await service.queryKeywords(adGroupId: adGroupId)
-            guard !Task.isCancelled, adsKeywordsID == requestID, selectedAppleAdsAdGroupId == adGroupId, selectedAppleAdsCampaignId == campaignID, selectedAppleAdsAccountId == accountID, selectedAppId == appID else { return }
+            guard !Task.isCancelled, adsKeywordsID == requestID, selectedAppleAdsAdGroupId == adGroupId,
+                selectedAppleAdsCampaignId == campaignID, selectedAppleAdsAccountId == accountID, selectedAppId == appID
+            else { return }
             appleAdsKeywords = keywords
         } catch {
-            guard !Task.isCancelled, adsKeywordsID == requestID, selectedAppleAdsAdGroupId == adGroupId, selectedAppleAdsCampaignId == campaignID, selectedAppleAdsAccountId == accountID, selectedAppId == appID else { return }
+            guard !Task.isCancelled, adsKeywordsID == requestID, selectedAppleAdsAdGroupId == adGroupId,
+                selectedAppleAdsCampaignId == campaignID, selectedAppleAdsAccountId == accountID, selectedAppId == appID
+            else { return }
             handleError(error)
         }
     }
 
-    internal func loadAppleAdsKeywordSuggestions() async {
+    func loadAppleAdsKeywordSuggestions() async {
         guard let service = appleAdsService, let adamId = selectedAppId else { return }
         let accountID = selectedAppleAdsAccountId
         let requestID = adsRefreshID
@@ -404,7 +421,9 @@ extension AppState {
                 adamId: adamId,
                 seeds: appleAdsKeywordSeeds
             )
-            guard selectedAppId == adamId, selectedAppleAdsAccountId == accountID, adsRefreshID == requestID else { return }
+            guard selectedAppId == adamId, selectedAppleAdsAccountId == accountID, adsRefreshID == requestID else {
+                return
+            }
             appleAdsSuggestions = suggestions
             appleAdsSelectedSuggestionTexts = Set(suggestions.map(\.text))
         } catch {
@@ -412,12 +431,13 @@ extension AppState {
         }
     }
 
-    internal func applySelectedAppleAdsKeywordSuggestions() async {
+    func applySelectedAppleAdsKeywordSuggestions() async {
         guard let service = appleAdsService, let adGroupId = selectedAppleAdsAdGroupId else {
             setError(L("Select an ad group before applying keywords."), category: .validation)
             return
         }
-        let drafts = appleAdsSuggestions
+        let drafts =
+            appleAdsSuggestions
             .filter { appleAdsSelectedSuggestionTexts.contains($0.text) }
             .map { AppleAdsKeywordDraft(text: $0.text, matchType: "BROAD", bidAmount: nil) }
         guard !drafts.isEmpty else { return }
@@ -433,7 +453,7 @@ extension AppState {
         }
     }
 
-    internal func updateAppleAdsCampaignStatus(id: String, status: String) async {
+    func updateAppleAdsCampaignStatus(id: String, status: String) async {
         guard let service = appleAdsService else { return }
         isLoadingAds = true
         defer { isLoadingAds = false }
@@ -448,7 +468,7 @@ extension AppState {
         }
     }
 
-    internal func reportDateRange(_ range: AppleAdsReportRange) -> (start: String, end: String) {
+    func reportDateRange(_ range: AppleAdsReportRange) -> (start: String, end: String) {
         let end = Date()
         let start = Calendar.current.date(byAdding: .day, value: -(range.dayCount - 1), to: end) ?? end
         return (AppleAdsDateFormat.day(start), AppleAdsDateFormat.day(end))

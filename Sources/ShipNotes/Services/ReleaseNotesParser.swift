@@ -14,17 +14,19 @@ struct ParsedReleaseNotes: Hashable {
     }
 
     var defaultCandidateSelections: [String: String] {
-        Dictionary(uniqueKeysWithValues: candidatesByLocale.compactMap { locale, candidates in
-            guard let candidate = candidates.first else { return nil }
-            return (locale, candidate.id)
-        })
+        Dictionary(
+            uniqueKeysWithValues: candidatesByLocale.compactMap { locale, candidates in
+                guard let candidate = candidates.first else { return nil }
+                return (locale, candidate.id)
+            })
     }
 
     func resolvedLocales(using selections: [String: String]) -> [String: String] {
         var resolved = locales
         for (locale, candidates) in candidatesByLocale {
             guard let selectedId = selections[locale],
-                  let candidate = candidates.first(where: { $0.id == selectedId }) else { continue }
+                let candidate = candidates.first(where: { $0.id == selectedId })
+            else { continue }
             resolved[locale] = candidate.text
         }
         return resolved
@@ -114,7 +116,8 @@ struct ReleaseNotesParser {
             if let dashed = tryParseDashSeparatedReleaseNotes(text, url: url, currentVersion: currentVersion) {
                 return dashed
             }
-            return try parseSingleLocaleFile(url, currentVersion: currentVersion, defaultLocale: defaultLocale, preloadedText: text)
+            return try parseSingleLocaleFile(
+                url, currentVersion: currentVersion, defaultLocale: defaultLocale, preloadedText: text)
         }
         throw ReleaseNotesParserError.unreadableFile(url)
     }

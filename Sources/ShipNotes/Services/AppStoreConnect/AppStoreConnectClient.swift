@@ -11,7 +11,9 @@ protocol AppStoreConnectServicing: Sendable {
     func fetchLocalizations(versionId: String) async throws -> [RemoteLocaleNote]
     func updateWhatsNew(localizationId: String, text: String) async throws -> RemoteLocaleNote
     func updateStoreMetadata(localizationId: String, metadata: StoreMetadataFields) async throws -> RemoteLocaleNote
-    func updateStoreMetadataField(localizationId: String, field: StoreCopyField, value: String) async throws -> RemoteLocaleNote
+    func updateStoreMetadataField(
+        localizationId: String, field: StoreCopyField, value: String
+    ) async throws -> RemoteLocaleNote
     func createLocalization(versionId: String, locale: String, text: String) async throws -> RemoteLocaleNote
     /// Create a new editable App Store version for the given app. `platform`
     /// must be one of Apple's enum values (`IOS`, `MAC_OS`, `TV_OS`, `VISION_OS`).
@@ -41,7 +43,9 @@ protocol AppStoreConnectServicing: Sendable {
     /// with the provided local files. Files are uploaded in the given order.
     /// `onProgress` is called after each file finishes uploading (0-based index, total, fileName).
     @discardableResult
-    func replaceScreenshots(localizationId: String, displayType: String, files: [URL], onProgress: (@Sendable (Int, Int, String) -> Void)?) async throws -> Int
+    func replaceScreenshots(
+        localizationId: String, displayType: String, files: [URL], onProgress: (@Sendable (Int, Int, String) -> Void)?
+    ) async throws -> Int
 
     /// Fetch current screenshots grouped by App Store display type for one localization.
     func fetchScreenshotSets(localizationId: String) async throws -> [RemoteScreenshotSet]
@@ -77,7 +81,9 @@ enum AppStoreConnectClientError: LocalizedError, Equatable, Sendable {
         case .screenshotProcessingFailed(let details):
             "App Store Connect could not process these screenshots:\n\(details)"
         case .screenshotDeletionNotConfirmed:
-            L("Old screenshots are still listed in App Store Connect. Upload stopped before adding new screenshots. Refresh and try again.")
+            L(
+                "Old screenshots are still listed in App Store Connect. Upload stopped before adding new screenshots. Refresh and try again."
+            )
         case .invalidResponse:
             "App Store Connect returned a response ShipNotes could not read."
         case .invalidResponseBody(let message):
@@ -128,7 +134,8 @@ struct AppStoreConnectClient: AppStoreConnectServicing, Sendable {
             if let date = Self.parseAppStoreConnectDate(str) {
                 return date
             }
-            throw DecodingError.dataCorruptedError(in: container,
+            throw DecodingError.dataCorruptedError(
+                in: container,
                 debugDescription: "Cannot parse App Store Connect date: \(str)")
         }
         self.decoder = decoder
@@ -302,7 +309,7 @@ extension AppStoreConnectClient {
     /// reasoning as the 5xx case.
     static func shouldRetry(urlError: URLError, method: String) -> Bool {
         let transient: Set<URLError.Code> = [
-            .timedOut, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed
+            .timedOut, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed,
         ]
         guard transient.contains(urlError.code) else { return false }
         return method == "GET" || method == "PUT"
@@ -316,7 +323,8 @@ extension AppStoreConnectClient {
     }
 
     func makeURL(path: String, queryItems: [URLQueryItem] = []) throws -> URL {
-        guard var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false) else {
+        guard var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)
+        else {
             throw AppStoreConnectClientError.invalidURL(path)
         }
         components.queryItems = queryItems.isEmpty ? nil : queryItems
@@ -364,7 +372,7 @@ private final class AppStoreConnectDateParser: @unchecked Sendable {
         // withInternetDateTime already includes withColonSeparatorInTimeZone.
         let options: [ISO8601DateFormatter.Options] = [
             [.withInternetDateTime, .withFractionalSeconds],
-            [.withInternetDateTime]
+            [.withInternetDateTime],
         ]
         return options.map { options in
             let formatter = ISO8601DateFormatter()

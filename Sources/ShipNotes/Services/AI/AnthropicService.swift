@@ -64,13 +64,14 @@ struct AnthropicService: AIService {
         currentVersion: String?,
         knownRemoteLocales: [String]
     ) async throws -> [String: String] {
-        let systemPrompt = AIPrompts.parseSystemPrompt(formatInstructions: """
-- If your runtime supports tool use, call the `submit_release_notes` tool.
-- Otherwise output EXACTLY one JSON object, with no surrounding prose, \
-no markdown, and no ``` code fences, matching:
-    {"locales": {"<locale_code>": "<release notes body>", ...}}
-- Return a map of App Store Connect locale code → release-notes body text.
-""")
+        let systemPrompt = AIPrompts.parseSystemPrompt(
+            formatInstructions: """
+                - If your runtime supports tool use, call the `submit_release_notes` tool.
+                - Otherwise output EXACTLY one JSON object, with no surrounding prose, \
+                no markdown, and no ``` code fences, matching:
+                    {"locales": {"<locale_code>": "<release notes body>", ...}}
+                - Return a map of App Store Connect locale code → release-notes body text.
+                """)
         let userPrompt = AIPrompts.parseUserPrompt(
             text: text,
             currentVersion: currentVersion,
@@ -82,11 +83,12 @@ no markdown, and no ``` code fences, matching:
             "properties": [
                 "locales": [
                     "type": "object",
-                    "description": "Map of App Store Connect locale code (e.g., 'en-US', 'zh-Hans', 'ja') to the release-notes body for that locale.",
-                    "additionalProperties": ["type": "string"]
+                    "description":
+                        "Map of App Store Connect locale code (e.g., 'en-US', 'zh-Hans', 'ja') to the release-notes body for that locale.",
+                    "additionalProperties": ["type": "string"],
                 ]
             ],
-            "required": ["locales"]
+            "required": ["locales"],
         ]
 
         let body: [String: Any] = [
@@ -97,20 +99,20 @@ no markdown, and no ``` code fences, matching:
                 [
                     "type": "text",
                     "text": systemPrompt,
-                    "cache_control": ["type": "ephemeral"]
+                    "cache_control": ["type": "ephemeral"],
                 ]
             ],
             "tools": [
                 [
                     "name": "submit_release_notes",
                     "description": "Submit the extracted release notes, keyed by App Store Connect locale code.",
-                    "input_schema": toolSchema
+                    "input_schema": toolSchema,
                 ]
             ],
             "tool_choice": ["type": "tool", "name": "submit_release_notes"],
             "messages": [
                 ["role": "user", "content": userPrompt]
-            ]
+            ],
         ]
 
         let response = try await postMessages(body: body)
@@ -127,13 +129,14 @@ no markdown, and no ``` code fences, matching:
         toLocale: String,
         glossary: [String: String]
     ) async throws -> String {
-        let systemPrompt = AIPrompts.translateSystemPrompt(formatInstructions: """
-- If your runtime supports tool use, call the `submit_translation` tool.
-- Otherwise output EXACTLY one JSON object, with no surrounding prose, \
-no markdown, and no ``` code fences:
-    {"translated_text": "<the translated body>"}
-- Return ONLY the translated body. No commentary, no leading "Here is...".
-""")
+        let systemPrompt = AIPrompts.translateSystemPrompt(
+            formatInstructions: """
+                - If your runtime supports tool use, call the `submit_translation` tool.
+                - Otherwise output EXACTLY one JSON object, with no surrounding prose, \
+                no markdown, and no ``` code fences:
+                    {"translated_text": "<the translated body>"}
+                - Return ONLY the translated body. No commentary, no leading "Here is...".
+                """)
         let userPrompt = AIPrompts.translateUserPrompt(
             text: text,
             fromLocale: fromLocale,
@@ -146,10 +149,11 @@ no markdown, and no ``` code fences:
             "properties": [
                 "translated_text": [
                     "type": "string",
-                    "description": "The translated release notes in the target locale, preserving line breaks and bullet markers, with no markdown formatting."
+                    "description":
+                        "The translated release notes in the target locale, preserving line breaks and bullet markers, with no markdown formatting.",
                 ]
             ],
-            "required": ["translated_text"]
+            "required": ["translated_text"],
         ]
 
         let body: [String: Any] = [
@@ -160,20 +164,20 @@ no markdown, and no ``` code fences:
                 [
                     "type": "text",
                     "text": systemPrompt,
-                    "cache_control": ["type": "ephemeral"]
+                    "cache_control": ["type": "ephemeral"],
                 ]
             ],
             "tools": [
                 [
                     "name": "submit_translation",
                     "description": "Submit the translated release notes text.",
-                    "input_schema": toolSchema
+                    "input_schema": toolSchema,
                 ]
             ],
             "tool_choice": ["type": "tool", "name": "submit_translation"],
             "messages": [
                 ["role": "user", "content": userPrompt]
-            ]
+            ],
         ]
 
         let response = try await postMessages(body: body)
@@ -193,20 +197,21 @@ no markdown, and no ``` code fences:
         appName: String,
         versionString: String?
     ) async throws -> [String: StoreMetadataFields] {
-        let systemPrompt = AIPrompts.storeMetadataParseSystemPrompt(formatInstructions: """
-- If your runtime supports tool use, call the `submit_store_metadata_locales` tool.
-- Otherwise output EXACTLY one JSON object, with no surrounding prose, \
-no markdown, and no ``` code fences, matching:
-    {"locales": {"<locale_code>": {
-      "subtitle": "...",
-      "description": "...",
-      "keywords": "...",
-      "promotionalText": "...",
-      "supportURL": "...",
-      "marketingURL": "...",
-      "privacyPolicyURL": "..."
-    }}}
-""")
+        let systemPrompt = AIPrompts.storeMetadataParseSystemPrompt(
+            formatInstructions: """
+                - If your runtime supports tool use, call the `submit_store_metadata_locales` tool.
+                - Otherwise output EXACTLY one JSON object, with no surrounding prose, \
+                no markdown, and no ``` code fences, matching:
+                    {"locales": {"<locale_code>": {
+                      "subtitle": "...",
+                      "description": "...",
+                      "keywords": "...",
+                      "promotionalText": "...",
+                      "supportURL": "...",
+                      "marketingURL": "...",
+                      "privacyPolicyURL": "..."
+                    }}}
+                """)
         let userPrompt = AIPrompts.storeMetadataParseUserPrompt(
             text: text,
             defaultLocale: defaultLocale,
@@ -225,8 +230,8 @@ no markdown, and no ``` code fences, matching:
                 "promotionalText": stringProperty,
                 "supportURL": stringProperty,
                 "marketingURL": stringProperty,
-                "privacyPolicyURL": stringProperty
-            ]
+                "privacyPolicyURL": stringProperty,
+            ],
         ]
         let toolSchema: [String: Any] = [
             "type": "object",
@@ -234,10 +239,10 @@ no markdown, and no ``` code fences, matching:
                 "locales": [
                     "type": "object",
                     "description": "Map of App Store Connect locale code to extracted product-page metadata.",
-                    "additionalProperties": metadataSchema
+                    "additionalProperties": metadataSchema,
                 ]
             ],
-            "required": ["locales"]
+            "required": ["locales"],
         ]
 
         let body: [String: Any] = [
@@ -248,20 +253,20 @@ no markdown, and no ``` code fences, matching:
                 [
                     "type": "text",
                     "text": systemPrompt,
-                    "cache_control": ["type": "ephemeral"]
+                    "cache_control": ["type": "ephemeral"],
                 ]
             ],
             "tools": [
                 [
                     "name": "submit_store_metadata_locales",
                     "description": "Submit extracted App Store metadata keyed by App Store Connect locale code.",
-                    "input_schema": toolSchema
+                    "input_schema": toolSchema,
                 ]
             ],
             "tool_choice": ["type": "tool", "name": "submit_store_metadata_locales"],
             "messages": [
                 ["role": "user", "content": userPrompt]
-            ]
+            ],
         ]
 
         let response = try await postMessages(body: body)
@@ -278,11 +283,12 @@ no markdown, and no ``` code fences, matching:
         appName: String,
         versionString: String?
     ) async throws -> StoreMetadataFields {
-        let systemPrompt = AIPrompts.storeMetadataSystemPrompt(formatInstructions: """
-- If your runtime supports tool use, call the `submit_store_metadata` tool.
-- Otherwise output EXACTLY one JSON object, with no surrounding prose, no markdown, and no ``` code fences:
-    {"subtitle":"...","description":"...","keywords":"...","promotionalText":"...","supportURL":"...","marketingURL":"...","privacyPolicyURL":"..."}
-""")
+        let systemPrompt = AIPrompts.storeMetadataSystemPrompt(
+            formatInstructions: """
+                - If your runtime supports tool use, call the `submit_store_metadata` tool.
+                - Otherwise output EXACTLY one JSON object, with no surrounding prose, no markdown, and no ``` code fences:
+                    {"subtitle":"...","description":"...","keywords":"...","promotionalText":"...","supportURL":"...","marketingURL":"...","privacyPolicyURL":"..."}
+                """)
         let userPrompt = AIPrompts.storeMetadataUserPrompt(
             metadata: metadata,
             locale: locale,
@@ -300,9 +306,9 @@ no markdown, and no ``` code fences, matching:
                 "promotionalText": stringProperty,
                 "supportURL": stringProperty,
                 "marketingURL": stringProperty,
-                "privacyPolicyURL": stringProperty
+                "privacyPolicyURL": stringProperty,
             ],
-            "required": ["description", "keywords", "promotionalText", "supportURL", "marketingURL"]
+            "required": ["description", "keywords", "promotionalText", "supportURL", "marketingURL"],
         ]
 
         let body: [String: Any] = [
@@ -313,20 +319,20 @@ no markdown, and no ``` code fences, matching:
                 [
                     "type": "text",
                     "text": systemPrompt,
-                    "cache_control": ["type": "ephemeral"]
+                    "cache_control": ["type": "ephemeral"],
                 ]
             ],
             "tools": [
                 [
                     "name": "submit_store_metadata",
                     "description": "Submit optimized App Store metadata fields.",
-                    "input_schema": toolSchema
+                    "input_schema": toolSchema,
                 ]
             ],
             "tool_choice": ["type": "tool", "name": "submit_store_metadata"],
             "messages": [
                 ["role": "user", "content": userPrompt]
-            ]
+            ],
         ]
 
         let response = try await postMessages(body: body)
@@ -383,7 +389,9 @@ no markdown, and no ``` code fences, matching:
         return AIResponseParsing.storeMetadata(from: toolInput)
     }
 
-    private static func extractStoreMetadataLocalesFromToolUse(_ response: [String: Any]) throws -> [String: StoreMetadataFields] {
+    private static func extractStoreMetadataLocalesFromToolUse(
+        _ response: [String: Any]
+    ) throws -> [String: StoreMetadataFields] {
         let toolInput = try extractToolInput(response, expectedName: "submit_store_metadata_locales")
         return try AIResponseParsing.storeMetadataLocales(from: toolInput)
     }
@@ -399,8 +407,9 @@ no markdown, and no ``` code fences, matching:
             // 1a. Proper Anthropic tool_use block (official endpoint and good proxies).
             for block in content {
                 if block["type"] as? String == "tool_use",
-                   block["name"] as? String == expectedName,
-                   let input = block["input"] as? [String: Any] {
+                    block["name"] as? String == expectedName,
+                    let input = block["input"] as? [String: Any]
+                {
                     return input
                 }
             }
@@ -409,8 +418,9 @@ no markdown, and no ``` code fences, matching:
             // plain text block instead.
             for block in content {
                 if block["type"] as? String == "text",
-                   let text = block["text"] as? String,
-                   let json = AIResponseParsing.jsonObjectIfPossible(from: text) {
+                    let text = block["text"] as? String,
+                    let json = AIResponseParsing.jsonObjectIfPossible(from: text)
+                {
                     return json
                 }
             }
@@ -420,18 +430,21 @@ no markdown, and no ``` code fences, matching:
         // Some proxies (LiteLLM with mis-routing, ad-hoc Chinese gateways) reply
         // in OpenAI shape even when called via the Anthropic endpoint.
         if let choices = response["choices"] as? [[String: Any]],
-           let first = choices.first,
-           let message = first["message"] as? [String: Any] {
+            let first = choices.first,
+            let message = first["message"] as? [String: Any]
+        {
             if let textContent = message["content"] as? String,
-               let json = AIResponseParsing.jsonObjectIfPossible(from: textContent) {
+                let json = AIResponseParsing.jsonObjectIfPossible(from: textContent)
+            {
                 return json
             }
             // Some shapes nest the JSON in `tool_calls[].function.arguments`.
             if let toolCalls = message["tool_calls"] as? [[String: Any]],
-               let firstCall = toolCalls.first,
-               let function = firstCall["function"] as? [String: Any],
-               let args = function["arguments"] as? String,
-               let json = AIResponseParsing.jsonObjectIfPossible(from: args) {
+                let firstCall = toolCalls.first,
+                let function = firstCall["function"] as? [String: Any],
+                let args = function["arguments"] as? String,
+                let json = AIResponseParsing.jsonObjectIfPossible(from: args)
+            {
                 return json
             }
         }
@@ -453,9 +466,10 @@ no markdown, and no ``` code fences, matching:
             }
         }
         if let choices = response["choices"] as? [[String: Any]],
-           let first = choices.first,
-           let message = first["message"] as? [String: Any],
-           let text = message["content"] as? String {
+            let first = choices.first,
+            let message = first["message"] as? [String: Any],
+            let text = message["content"] as? String
+        {
             collected.append(text)
         }
         let topKeys = response.keys.sorted().joined(separator: ", ")

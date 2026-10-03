@@ -90,15 +90,17 @@ enum ScreenshotIPadSupportDetector {
     private static func detectExpoConfig(in root: URL) -> ScreenshotIPadSupportDetection? {
         let configURL = root.appending(path: "app.json")
         guard FileManager.default.fileExists(atPath: configURL.path),
-              let data = try? Data(contentsOf: configURL),
-              let object = try? JSONSerialization.jsonObject(with: data),
-              let json = object as? [String: Any] else {
+            let data = try? Data(contentsOf: configURL),
+            let object = try? JSONSerialization.jsonObject(with: data),
+            let json = object as? [String: Any]
+        else {
             return nil
         }
 
         let expo = json["expo"] as? [String: Any] ?? json
         guard let ios = expo["ios"] as? [String: Any],
-              let supportsTablet = ios["supportsTablet"] as? Bool else {
+            let supportsTablet = ios["supportsTablet"] as? Bool
+        else {
             return nil
         }
 
@@ -110,10 +112,11 @@ enum ScreenshotIPadSupportDetector {
     private static func detectInfoPlist(in root: URL) -> ScreenshotIPadSupportDetection? {
         for plistURL in infoPlistCandidates(in: root) {
             guard let data = try? Data(contentsOf: plistURL),
-                  let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
-                  let dictionary = plist as? [String: Any],
-                  let families = dictionary["UIDeviceFamily"] as? [Int],
-                  !families.isEmpty else {
+                let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
+                let dictionary = plist as? [String: Any],
+                let families = dictionary["UIDeviceFamily"] as? [Int],
+                !families.isEmpty
+            else {
                 continue
             }
 
@@ -138,18 +141,21 @@ enum ScreenshotIPadSupportDetector {
     }
 
     private static func detectXcodeProject(in root: URL) -> ScreenshotIPadSupportDetection? {
-        guard let children = try? FileManager.default.contentsOfDirectory(
-            at: root,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else {
+        guard
+            let children = try? FileManager.default.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+        else {
             return nil
         }
 
         for projectURL in children where projectURL.pathExtension == "xcodeproj" {
             let pbxprojURL = projectURL.appending(path: "project.pbxproj")
             guard let text = try? String(contentsOf: pbxprojURL, encoding: .utf8),
-                  let detection = detectTargetedDeviceFamily(in: text) else {
+                let detection = detectTargetedDeviceFamily(in: text)
+            else {
                 continue
             }
             return detection
@@ -179,7 +185,8 @@ enum ScreenshotIPadSupportDetector {
             : .unsupported(source: source)
     }
 
-    private static let targetDeviceFamilyRegex = try! NSRegularExpression(pattern: #"TARGETED_DEVICE_FAMILY\s*=\s*([^;]+);"#)
+    private static let targetDeviceFamilyRegex = try! NSRegularExpression(
+        pattern: #"TARGETED_DEVICE_FAMILY\s*=\s*([^;]+);"#)
 
     private static func allTargetedDeviceFamilyValues(in text: String) -> [String] {
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
@@ -193,7 +200,9 @@ enum ScreenshotIPadSupportDetector {
         }
     }
 
-    private static func targetedDeviceFamilyValuesForApplicationTargets(in text: String) -> (
+    private static func targetedDeviceFamilyValuesForApplicationTargets(
+        in text: String
+    ) -> (
         foundApplicationTarget: Bool,
         values: [String]
     ) {
@@ -221,7 +230,8 @@ enum ScreenshotIPadSupportDetector {
 
         let buildConfigurationIDs = appConfigurationListIDs.flatMap { listID -> [String] in
             guard let body = configurationListBlocks[listID],
-                  let listBody = firstCapture(in: body, pattern: #"buildConfigurations\s*=\s*\((.*?)\);"#) else {
+                let listBody = firstCapture(in: body, pattern: #"buildConfigurations\s*=\s*\((.*?)\);"#)
+            else {
                 return []
             }
             return captures(in: listBody, pattern: #"([A-Za-z0-9]+)\s*/\*"#)
@@ -237,13 +247,15 @@ enum ScreenshotIPadSupportDetector {
         return (true, values)
     }
 
-    private static let objectBlocksRegex = try! NSRegularExpression(pattern: #"([A-Za-z0-9]+)\s*/\*[^*]*\*/\s*=\s*\{(.*?)\n\s*\};"#, options: [.dotMatchesLineSeparators])
+    private static let objectBlocksRegex = try! NSRegularExpression(
+        pattern: #"([A-Za-z0-9]+)\s*/\*[^*]*\*/\s*=\s*\{(.*?)\n\s*\};"#, options: [.dotMatchesLineSeparators])
 
     private static func objectBlocks(in text: String, isa: String) -> [(id: String, body: String)] {
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
         return objectBlocksRegex.matches(in: text, range: range).compactMap { match in
             guard let idRange = Range(match.range(at: 1), in: text),
-                  let bodyRange = Range(match.range(at: 2), in: text) else {
+                let bodyRange = Range(match.range(at: 2), in: text)
+            else {
                 return nil
             }
             let body = String(text[bodyRange])
@@ -274,7 +286,8 @@ enum ScreenshotIPadSupportDetector {
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
         return regex.matches(in: text, range: range).compactMap { match in
             guard match.numberOfRanges > 1,
-                  let captureRange = Range(match.range(at: 1), in: text) else {
+                let captureRange = Range(match.range(at: 1), in: text)
+            else {
                 return nil
             }
             return String(text[captureRange])

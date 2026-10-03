@@ -1,5 +1,5 @@
-import Testing
 import Foundation
+import Testing
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -168,9 +168,10 @@ struct ScreenshotScannerTests {
 
         #expect(scan.missingRequirements(for: "en-US", requiredGroups: [requirement]).isEmpty)
         #expect(scan.missingRequirements(for: "zh-Hans", requiredGroups: [requirement]).isEmpty)
-        #expect(!scan.issues(requiredGroups: [requirement]).contains {
-            $0.title == expectedLocalized("Missing required screenshot size")
-        })
+        #expect(
+            !scan.issues(requiredGroups: [requirement]).contains {
+                $0.title == expectedLocalized("Missing required screenshot size")
+            })
     }
 
     @Test func detectsExpoTabletSupportFromProjectAncestor() throws {
@@ -271,7 +272,10 @@ struct ScreenshotScannerTests {
 
         #expect(group.isUnassigned)
         #expect(issues.contains { $0.title == expectedLocalized("Locale not detected") && $0.severity == .warning })
-        #expect(!issues.contains { $0.title == expectedLocalized("Missing required screenshot size") && $0.locale == group.locale })
+        #expect(
+            !issues.contains {
+                $0.title == expectedLocalized("Missing required screenshot size") && $0.locale == group.locale
+            })
     }
 
     private func makeTempFolder() throws -> URL {
@@ -287,18 +291,20 @@ struct ScreenshotScannerTests {
 
     private func writePNG(width: Int, height: Int, to url: URL) throws {
         #if canImport(AppKit)
-        guard let rep = NSBitmapImageRep(
-            bitmapDataPlanes: nil,
-            pixelsWide: width,
-            pixelsHigh: height,
-            bitsPerSample: 8,
-            samplesPerPixel: 4,
-            hasAlpha: true,
-            isPlanar: false,
-            colorSpaceName: .deviceRGB,
-            bytesPerRow: 0,
-            bitsPerPixel: 0
-        ), let data = rep.representation(using: .png, properties: [:]) else {
+        guard
+            let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: width,
+                pixelsHigh: height,
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: 0,
+                bitsPerPixel: 0
+            ), let data = rep.representation(using: .png, properties: [:])
+        else {
             throw CocoaError(.fileWriteUnknown)
         }
         try data.write(to: url)

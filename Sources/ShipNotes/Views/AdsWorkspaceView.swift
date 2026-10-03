@@ -38,7 +38,10 @@ struct AdsWorkspaceView: View {
             }
             Button(L("Cancel"), role: .cancel) {}
         } message: {
-            Text(L("%d keyword(s) will be created on the selected ad group.", state.appleAdsSelectedSuggestionTexts.count))
+            Text(
+                L(
+                    "%d keyword(s) will be created on the selected ad group.",
+                    state.appleAdsSelectedSuggestionTexts.count))
         }
         .confirmationDialog(
             statusDialogTitle,
@@ -60,9 +63,10 @@ struct AdsWorkspaceView: View {
                 state.cancelAppleAdsStatusChange()
             }
         } message: {
-            Text(state.isUsingSampleAds
-                 ? L("Sample data only — nothing is billed.")
-                 : L("This changes a live Apple Ads campaign."))
+            Text(
+                state.isUsingSampleAds
+                    ? L("Sample data only — nothing is billed.")
+                    : L("This changes a live Apple Ads campaign."))
         }
     }
 
@@ -73,10 +77,13 @@ struct AdsWorkspaceView: View {
             if state.appleAdsCampaigns.isEmpty {
                 emptyCampaigns
             } else {
-                List(state.appleAdsCampaigns, selection: Binding(
-                    get: { state.selectedAppleAdsCampaignId },
-                    set: { if let id = $0 { state.selectAppleAdsCampaign(id) } }
-                )) { campaign in
+                List(
+                    state.appleAdsCampaigns,
+                    selection: Binding(
+                        get: { state.selectedAppleAdsCampaignId },
+                        set: { if let id = $0 { state.selectAppleAdsCampaign(id) } }
+                    )
+                ) { campaign in
                     campaignRow(campaign)
                         .tag(campaign.id)
                 }
@@ -105,10 +112,13 @@ struct AdsWorkspaceView: View {
             Text(L(state.appleAdsConnectionStatus))
                 .font(.callout)
                 .foregroundStyle(state.isUsingSampleAds ? Color.secondary : Color.green)
-            Picker(L("Range"), selection: Binding(
-                get: { state.appleAdsReportRange },
-                set: { state.appleAdsReportRange = $0 }
-            )) {
+            Picker(
+                L("Range"),
+                selection: Binding(
+                    get: { state.appleAdsReportRange },
+                    set: { state.appleAdsReportRange = $0 }
+                )
+            ) {
                 ForEach(AppleAdsReportRange.allCases) { range in
                     Text(range.title).tag(range)
                 }
@@ -122,10 +132,13 @@ struct AdsWorkspaceView: View {
     private var capabilitiesBanner: some View {
         if let account = state.appleAdsAccountCapabilities {
             HStack(spacing: 8) {
-                Image(systemName: account.canRunAppStoreCampaigns && account.hasContentProviderDelegation
-                      ? "checkmark.seal"
-                      : "exclamationmark.triangle")
-                    .foregroundStyle(account.canRunAppStoreCampaigns && account.hasContentProviderDelegation ? .green : .orange)
+                Image(
+                    systemName: account.canRunAppStoreCampaigns && account.hasContentProviderDelegation
+                        ? "checkmark.seal"
+                        : "exclamationmark.triangle"
+                )
+                .foregroundStyle(
+                    account.canRunAppStoreCampaigns && account.hasContentProviderDelegation ? .green : .orange)
                 Text(capabilityCopy(account))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -150,7 +163,10 @@ struct AdsWorkspaceView: View {
             ContentUnavailableView {
                 Label(L("Connect Apple Ads"), systemImage: "key")
             } description: {
-                Text(L("Add an Apple Ads API key in Settings to load live campaigns. Sample campaigns are shown for apps that have them."))
+                Text(
+                    L(
+                        "Add an Apple Ads API key in Settings to load live campaigns. Sample campaigns are shown for apps that have them."
+                    ))
             }
         } else if state.appleAdsAccounts.isEmpty && !state.isUsingSampleAds {
             ContentUnavailableView {
@@ -162,7 +178,10 @@ struct AdsWorkspaceView: View {
             ContentUnavailableView {
                 Label(L("No campaigns for this app"), systemImage: "megaphone")
             } description: {
-                Text(L("This App Store ID has no Apple Ads campaigns yet. Use Promote to create a Search results campaign."))
+                Text(
+                    L(
+                        "This App Store ID has no Apple Ads campaigns yet. Use Promote to create a Search results campaign."
+                    ))
             }
         }
     }
@@ -179,9 +198,13 @@ struct AdsWorkspaceView: View {
                     .foregroundStyle(.secondary)
             }
             if let metrics {
-                Text(L("Spend %1$@ · %2$d taps · %3$d installs", currency(metrics.spend, metrics.currency), metrics.taps, metrics.installs))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(
+                    L(
+                        "Spend %1$@ · %2$d taps · %3$d installs", currency(metrics.spend, metrics.currency),
+                        metrics.taps, metrics.installs)
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 4)
@@ -259,10 +282,13 @@ struct AdsWorkspaceView: View {
     private var adGroupSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(L("Ad Groups")).font(.headline)
-            Picker(L("Ad Group"), selection: Binding(
-                get: { state.selectedAppleAdsAdGroupId ?? "" },
-                set: { if !$0.isEmpty { state.selectAppleAdsAdGroup($0) } }
-            )) {
+            Picker(
+                L("Ad Group"),
+                selection: Binding(
+                    get: { state.selectedAppleAdsAdGroupId ?? "" },
+                    set: { if !$0.isEmpty { state.selectAppleAdsAdGroup($0) } }
+                )
+            ) {
                 ForEach(state.appleAdsAdGroups) { group in
                     Text(group.name).tag(group.id)
                 }
@@ -327,22 +353,28 @@ struct AdsWorkspaceView: View {
                 .disabled(state.selectedAppId == nil || state.isLoadingAds)
             }
             if state.appleAdsSuggestions.isEmpty {
-                Text(L("Pull suggestions from What’s New and App Store keywords, then apply them to the selected ad group."))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    L(
+                        "Pull suggestions from What’s New and App Store keywords, then apply them to the selected ad group."
+                    )
+                )
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             } else {
                 ForEach(state.appleAdsSuggestions) { suggestion in
-                    Toggle(isOn: Binding(
-                        get: { state.appleAdsSelectedSuggestionTexts.contains(suggestion.text) },
-                        set: { selected in
-                            if selected {
-                                state.appleAdsSelectedSuggestionTexts.insert(suggestion.text)
-                            } else {
-                                state.appleAdsSelectedSuggestionTexts.remove(suggestion.text)
+                    Toggle(
+                        isOn: Binding(
+                            get: { state.appleAdsSelectedSuggestionTexts.contains(suggestion.text) },
+                            set: { selected in
+                                if selected {
+                                    state.appleAdsSelectedSuggestionTexts.insert(suggestion.text)
+                                } else {
+                                    state.appleAdsSelectedSuggestionTexts.remove(suggestion.text)
+                                }
                             }
-                        }
-                    )) {
+                        )
+                    ) {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(suggestion.text)
                             Text(suggestion.source)

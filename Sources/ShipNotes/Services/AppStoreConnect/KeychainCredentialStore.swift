@@ -16,7 +16,7 @@ struct KeychainCredentialStore: AppStoreConnectCredentialStoring, Sendable {
         var query = baseQuery
         let attributes: [String: Any] = [
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
 
         let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
@@ -47,7 +47,7 @@ struct KeychainCredentialStore: AppStoreConnectCredentialStoring, Sendable {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
         ]
     }
 
@@ -63,7 +63,8 @@ struct KeychainCredentialStore: AppStoreConnectCredentialStoring, Sendable {
             throw AppStoreConnectCredentialError.keychainReadFailed(status)
         }
         guard let data = item as? Data,
-              let credentials = try? decoder.decode(AppStoreConnectCredentials.self, from: data) else {
+            let credentials = try? decoder.decode(AppStoreConnectCredentials.self, from: data)
+        else {
             throw AppStoreConnectCredentialError.invalidStoredData
         }
         return credentials

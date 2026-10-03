@@ -170,9 +170,12 @@ struct SidebarView: View {
                         .symbolEffect(.pulse, options: .repeating, isActive: state.isAIRunning)
                 }
             }
-            Text(state.accounts.first.map { state.isUsingMockData ? L(state.connectionStatus) : L("Key %@", $0.keyId) } ?? L("Add an API key to begin"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text(
+                state.accounts.first.map { state.isUsingMockData ? L(state.connectionStatus) : L("Key %@", $0.keyId) }
+                    ?? L("Add an API key to begin")
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
             if state.isAIConfigured {
                 Text(L("AI: %@ · %@", state.selectedAIProvider.displayName, state.currentAIModel))
                     .font(.caption2)

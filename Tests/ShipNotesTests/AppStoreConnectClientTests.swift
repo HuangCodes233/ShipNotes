@@ -7,13 +7,16 @@ import Testing
 @Suite("AppStoreConnectClient", .serialized)
 struct AppStoreConnectClientTests {
     @Test func aiRateLimitStopsAfterThreeRetries() async throws {
-        let session = URLSession(configuration: Self.stubConfiguration(routes: (0..<5).map { _ in
-            { request in
-                let response = HTTPURLResponse(url: request.url!, statusCode: 429, httpVersion: nil,
-                                               headerFields: ["Retry-After": "0"])!
-                return (response, Data())
-            }
-        }))
+        let session = URLSession(
+            configuration: Self.stubConfiguration(
+                routes: (0..<5).map { _ in
+                    { request in
+                        let response = HTTPURLResponse(
+                            url: request.url!, statusCode: 429, httpVersion: nil,
+                            headerFields: ["Retry-After": "0"])!
+                        return (response, Data())
+                    }
+                }))
         defer { session.invalidateAndCancel() }
 
         let (_, response) = try await AIRequestPolicy.data(
@@ -25,14 +28,16 @@ struct AppStoreConnectClientTests {
     }
 
     @Test func aiRetryStopsWhenRequestSucceeds() async throws {
-        let session = URLSession(configuration: Self.stubConfiguration(routes: [
-            { request in
-                let response = HTTPURLResponse(url: request.url!, statusCode: 503, httpVersion: nil,
-                                               headerFields: ["Retry-After": "0"])!
-                return (response, Data())
-            },
-            { request in Self.jsonResponse(for: request, body: #"{"ok":true}"#) }
-        ]))
+        let session = URLSession(
+            configuration: Self.stubConfiguration(routes: [
+                { request in
+                    let response = HTTPURLResponse(
+                        url: request.url!, statusCode: 503, httpVersion: nil,
+                        headerFields: ["Retry-After": "0"])!
+                    return (response, Data())
+                },
+                { request in Self.jsonResponse(for: request, body: #"{"ok":true}"#) },
+            ]))
         defer { session.invalidateAndCancel() }
 
         let (data, response) = try await AIRequestPolicy.data(
@@ -45,9 +50,10 @@ struct AppStoreConnectClientTests {
     }
 
     @Test func aiAuthenticationFailureIsNotRetried() async throws {
-        let session = URLSession(configuration: Self.stubConfiguration(routes: [
-            { request in Self.emptyResponse(for: request, statusCode: 401) }
-        ]))
+        let session = URLSession(
+            configuration: Self.stubConfiguration(routes: [
+                { request in Self.emptyResponse(for: request, statusCode: 401) }
+            ]))
         defer { session.invalidateAndCancel() }
 
         let (_, response) = try await AIRequestPolicy.data(
@@ -59,45 +65,47 @@ struct AppStoreConnectClientTests {
     }
 
     @Test func allBuildsIncludeMarketingVersionFromPrereleaseRelationship() async throws {
-        let session = URLSession(configuration: Self.stubConfiguration(routes: [
-            { request in
-                #expect(request.httpMethod == "GET")
-                #expect(request.url?.path == "/v1/builds")
-                let query = try #require(URLComponents(url: request.url!, resolvingAgainstBaseURL: false))
-                #expect(query.queryItems?.contains(URLQueryItem(name: "filter[app]", value: "app-1")) == true)
-                #expect(query.queryItems?.contains(URLQueryItem(name: "include", value: "preReleaseVersion")) == true)
-                return Self.jsonResponse(
-                    for: request,
-                    body: """
-                    {
-                      "data": [
-                        {
-                          "id": "build-15",
-                          "type": "builds",
-                          "attributes": {
-                            "version": "15",
-                            "uploadedDate": "2026-07-27T07:32:00Z",
-                            "processingState": "VALID"
-                          },
-                          "relationships": {
-                            "preReleaseVersion": {
-                              "data": { "type": "preReleaseVersions", "id": "pr-1162" }
+        let session = URLSession(
+            configuration: Self.stubConfiguration(routes: [
+                { request in
+                    #expect(request.httpMethod == "GET")
+                    #expect(request.url?.path == "/v1/builds")
+                    let query = try #require(URLComponents(url: request.url!, resolvingAgainstBaseURL: false))
+                    #expect(query.queryItems?.contains(URLQueryItem(name: "filter[app]", value: "app-1")) == true)
+                    #expect(
+                        query.queryItems?.contains(URLQueryItem(name: "include", value: "preReleaseVersion")) == true)
+                    return Self.jsonResponse(
+                        for: request,
+                        body: """
+                            {
+                              "data": [
+                                {
+                                  "id": "build-15",
+                                  "type": "builds",
+                                  "attributes": {
+                                    "version": "15",
+                                    "uploadedDate": "2026-07-27T07:32:00Z",
+                                    "processingState": "VALID"
+                                  },
+                                  "relationships": {
+                                    "preReleaseVersion": {
+                                      "data": { "type": "preReleaseVersions", "id": "pr-1162" }
+                                    }
+                                  }
+                                }
+                              ],
+                              "included": [
+                                {
+                                  "id": "pr-1162",
+                                  "type": "preReleaseVersions",
+                                  "attributes": { "version": "1.16.2", "platform": "IOS" }
+                                }
+                              ]
                             }
-                          }
-                        }
-                      ],
-                      "included": [
-                        {
-                          "id": "pr-1162",
-                          "type": "preReleaseVersions",
-                          "attributes": { "version": "1.16.2", "platform": "IOS" }
-                        }
-                      ]
-                    }
-                    """
-                )
-            }
-        ]))
+                            """
+                    )
+                }
+            ]))
         let credentials = AppStoreConnectCredentials(
             name: "Test",
             issuerId: "issuer-123",
@@ -125,98 +133,99 @@ struct AppStoreConnectClientTests {
         let imageURL = folder.appending(path: "one.png")
         try imageData.write(to: imageURL)
 
-        let session = URLSession(configuration: Self.stubConfiguration(routes: [
-            { request in
-                #expect(request.httpMethod == "GET")
-                #expect(request.url?.path == "/v1/appStoreVersionLocalizations/loc-1/appScreenshotSets")
-                return Self.jsonResponse(
-                    for: request,
-                    body: """
-                    {"data":[{"id":"set-1","type":"appScreenshotSets","attributes":{"screenshotDisplayType":"APP_IPHONE_65"}}]}
-                    """
-                )
-            },
-            { request in
-                #expect(request.httpMethod == "GET")
-                #expect(request.url?.path == "/v1/appScreenshotSets/set-1/appScreenshots")
-                return Self.jsonResponse(
-                    for: request,
-                    body: """
-                    {
-                      "data": [
-                        {
-                          "id": "old-shot-1",
-                          "type": "appScreenshots",
-                          "attributes": {
-                            "fileName": "old.png",
-                            "fileSize": 123,
-                            "assetDeliveryState": {
-                              "errors": [],
-                              "warnings": null,
-                              "state": "COMPLETE"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                    """
-                )
-            },
-            { request in
-                #expect(request.httpMethod == "DELETE")
-                #expect(request.url?.path == "/v1/appScreenshots/old-shot-1")
-                return Self.emptyResponse(for: request, statusCode: 204)
-            },
-            { request in
-                #expect(request.httpMethod == "GET")
-                #expect(request.url?.path == "/v1/appScreenshotSets/set-1/appScreenshots")
-                return Self.jsonResponse(for: request, body: #"{"data":[]}"#)
-            },
-            { request in
-                #expect(request.httpMethod == "POST")
-                #expect(request.url?.path == "/v1/appScreenshots")
-                return Self.jsonResponse(
-                    for: request,
-                    body: """
-                    {
-                      "data": {
-                        "id": "shot-1",
-                        "type": "appScreenshots",
-                        "attributes": {
-                          "fileName": "one.png",
-                          "fileSize": 5,
-                          "uploadOperations": [
+        let session = URLSession(
+            configuration: Self.stubConfiguration(routes: [
+                { request in
+                    #expect(request.httpMethod == "GET")
+                    #expect(request.url?.path == "/v1/appStoreVersionLocalizations/loc-1/appScreenshotSets")
+                    return Self.jsonResponse(
+                        for: request,
+                        body: """
+                            {"data":[{"id":"set-1","type":"appScreenshotSets","attributes":{"screenshotDisplayType":"APP_IPHONE_65"}}]}
+                            """
+                    )
+                },
+                { request in
+                    #expect(request.httpMethod == "GET")
+                    #expect(request.url?.path == "/v1/appScreenshotSets/set-1/appScreenshots")
+                    return Self.jsonResponse(
+                        for: request,
+                        body: """
                             {
-                              "method": "PUT",
-                              "url": "https://upload.example.test/shot-1",
-                              "offset": 0,
-                              "length": 5,
-                              "requestHeaders": []
+                              "data": [
+                                {
+                                  "id": "old-shot-1",
+                                  "type": "appScreenshots",
+                                  "attributes": {
+                                    "fileName": "old.png",
+                                    "fileSize": 123,
+                                    "assetDeliveryState": {
+                                      "errors": [],
+                                      "warnings": null,
+                                      "state": "COMPLETE"
+                                    }
+                                  }
+                                }
+                              ]
                             }
-                          ]
-                        }
-                      }
-                    }
-                    """
-                )
-            },
-            { request in
-                #expect(request.httpMethod == "PUT")
-                #expect(request.url?.host == "upload.example.test")
-                return Self.emptyResponse(for: request, statusCode: 200)
-            },
-            { request in
-                #expect(request.httpMethod == "PATCH")
-                #expect(request.url?.path == "/v1/appScreenshots/shot-1")
-                return Self.emptyResponse(for: request, statusCode: 204)
-            },
-            { request in
-                // Check processing after uploading the new screenshot.
-                #expect(request.httpMethod == "GET")
-                #expect(request.url?.path == "/v1/appScreenshotSets/set-1/appScreenshots")
-                return Self.deliveryStateResponse(for: request, id: "shot-1", state: "COMPLETE")
-            }
-        ]))
+                            """
+                    )
+                },
+                { request in
+                    #expect(request.httpMethod == "DELETE")
+                    #expect(request.url?.path == "/v1/appScreenshots/old-shot-1")
+                    return Self.emptyResponse(for: request, statusCode: 204)
+                },
+                { request in
+                    #expect(request.httpMethod == "GET")
+                    #expect(request.url?.path == "/v1/appScreenshotSets/set-1/appScreenshots")
+                    return Self.jsonResponse(for: request, body: #"{"data":[]}"#)
+                },
+                { request in
+                    #expect(request.httpMethod == "POST")
+                    #expect(request.url?.path == "/v1/appScreenshots")
+                    return Self.jsonResponse(
+                        for: request,
+                        body: """
+                            {
+                              "data": {
+                                "id": "shot-1",
+                                "type": "appScreenshots",
+                                "attributes": {
+                                  "fileName": "one.png",
+                                  "fileSize": 5,
+                                  "uploadOperations": [
+                                    {
+                                      "method": "PUT",
+                                      "url": "https://upload.example.test/shot-1",
+                                      "offset": 0,
+                                      "length": 5,
+                                      "requestHeaders": []
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                            """
+                    )
+                },
+                { request in
+                    #expect(request.httpMethod == "PUT")
+                    #expect(request.url?.host == "upload.example.test")
+                    return Self.emptyResponse(for: request, statusCode: 200)
+                },
+                { request in
+                    #expect(request.httpMethod == "PATCH")
+                    #expect(request.url?.path == "/v1/appScreenshots/shot-1")
+                    return Self.emptyResponse(for: request, statusCode: 204)
+                },
+                { request in
+                    // Check processing after uploading the new screenshot.
+                    #expect(request.httpMethod == "GET")
+                    #expect(request.url?.path == "/v1/appScreenshotSets/set-1/appScreenshots")
+                    return Self.deliveryStateResponse(for: request, id: "shot-1", state: "COMPLETE")
+                },
+            ]))
 
         let credentials = AppStoreConnectCredentials(
             name: "Test",
@@ -239,28 +248,31 @@ struct AppStoreConnectClientTests {
         let (folder, file) = try Self.makeScreenshotFile()
         defer { try? FileManager.default.removeItem(at: folder) }
 
-        let session = URLSession(configuration: Self.stubConfiguration(routes: Self.screenshotSetRoutes(oldScreenshotID: "old-shot-1") + [
-            { request in Self.emptyResponse(for: request, statusCode: 200) },   // PUT bytes
-            { request in Self.emptyResponse(for: request, statusCode: 204) },   // PATCH uploaded
-            { request in
-                Self.deliveryStateResponse(
-                    for: request,
-                    id: "shot-1",
-                    state: "FAILED",
-                    errors: #"[{"code":"IMAGE_ALPHA_NOT_ALLOWED","description":"Alpha channel not allowed"}]"#
-                )
-            },
-            { request in
-                // The old set was already cleared; clean up the rejected new upload.
-                #expect(request.httpMethod == "DELETE")
-                #expect(request.url?.path == "/v1/appScreenshots/shot-1")
-                return Self.emptyResponse(for: request, statusCode: 204)
-            }
-        ]))
+        let session = URLSession(
+            configuration: Self.stubConfiguration(
+                routes: Self.screenshotSetRoutes(oldScreenshotID: "old-shot-1") + [
+                    { request in Self.emptyResponse(for: request, statusCode: 200) },  // PUT bytes
+                    { request in Self.emptyResponse(for: request, statusCode: 204) },  // PATCH uploaded
+                    { request in
+                        Self.deliveryStateResponse(
+                            for: request,
+                            id: "shot-1",
+                            state: "FAILED",
+                            errors: #"[{"code":"IMAGE_ALPHA_NOT_ALLOWED","description":"Alpha channel not allowed"}]"#
+                        )
+                    },
+                    { request in
+                        // The old set was already cleared; clean up the rejected new upload.
+                        #expect(request.httpMethod == "DELETE")
+                        #expect(request.url?.path == "/v1/appScreenshots/shot-1")
+                        return Self.emptyResponse(for: request, statusCode: 204)
+                    },
+                ]))
         let client = Self.makeClient(session: session)
 
         do {
-            _ = try await client.replaceScreenshots(localizationId: "loc-1", displayType: "APP_IPHONE_65", files: [file])
+            _ = try await client.replaceScreenshots(
+                localizationId: "loc-1", displayType: "APP_IPHONE_65", files: [file])
             Issue.record("Expected processing failure")
         } catch let error as AppStoreConnectClientError {
             guard case .screenshotProcessingFailed(let details) = error else {
@@ -277,18 +289,21 @@ struct AppStoreConnectClientTests {
         let (folder, file) = try Self.makeScreenshotFile()
         defer { try? FileManager.default.removeItem(at: folder) }
 
-        let session = URLSession(configuration: Self.stubConfiguration(routes: Self.screenshotSetRoutes(oldScreenshotID: nil) + [
-            { request in Self.emptyResponse(for: request, statusCode: 403) },   // PUT bytes rejected
-            { request in
-                #expect(request.httpMethod == "DELETE")
-                #expect(request.url?.path == "/v1/appScreenshots/shot-1")
-                return Self.emptyResponse(for: request, statusCode: 204)
-            }
-        ]))
+        let session = URLSession(
+            configuration: Self.stubConfiguration(
+                routes: Self.screenshotSetRoutes(oldScreenshotID: nil) + [
+                    { request in Self.emptyResponse(for: request, statusCode: 403) },  // PUT bytes rejected
+                    { request in
+                        #expect(request.httpMethod == "DELETE")
+                        #expect(request.url?.path == "/v1/appScreenshots/shot-1")
+                        return Self.emptyResponse(for: request, statusCode: 204)
+                    },
+                ]))
         let client = Self.makeClient(session: session)
 
         await #expect(throws: AppStoreConnectClientError.self) {
-            _ = try await client.replaceScreenshots(localizationId: "loc-1", displayType: "APP_IPHONE_65", files: [file])
+            _ = try await client.replaceScreenshots(
+                localizationId: "loc-1", displayType: "APP_IPHONE_65", files: [file])
         }
         #expect(StubURLProtocol.requestCount == 5)
     }
@@ -325,10 +340,12 @@ struct AppStoreConnectClientTests {
                 { request in
                     #expect(request.httpMethod == "POST")
                     #expect(request.url?.path == "/v1/appScreenshots")
-                    return Self.jsonResponse(for: request, body: """
-                    {"data":{"id":"new-\(index)","type":"appScreenshots","attributes":{
-                    "uploadOperations":[{"method":"PUT","url":"https://upload.example.test/new-\(index)","offset":0,"length":5,"requestHeaders":[]}]}}}
-                    """)
+                    return Self.jsonResponse(
+                        for: request,
+                        body: """
+                            {"data":{"id":"new-\(index)","type":"appScreenshots","attributes":{
+                            "uploadOperations":[{"method":"PUT","url":"https://upload.example.test/new-\(index)","offset":0,"length":5,"requestHeaders":[]}]}}}
+                            """)
                 },
                 { request in
                     #expect(request.httpMethod == "PUT")
@@ -339,13 +356,15 @@ struct AppStoreConnectClientTests {
                     #expect(request.httpMethod == "PATCH")
                     #expect(request.url?.path == "/v1/appScreenshots/new-\(index)")
                     return Self.emptyResponse(for: request, statusCode: 204)
-                }
+                },
             ]
         }
         routes += [
             { request in
                 #expect(request.httpMethod == "GET")
-                let items = (0..<10).map { #"{"id":"new-\#($0)","type":"appScreenshots","attributes":{"assetDeliveryState":{"state":"COMPLETE"}}}"# }.joined(separator: ",")
+                let items = (0..<10).map {
+                    #"{"id":"new-\#($0)","type":"appScreenshots","attributes":{"assetDeliveryState":{"state":"COMPLETE"}}}"#
+                }.joined(separator: ",")
                 return Self.jsonResponse(for: request, body: #"{"data":[\#(items)]}"#)
             },
             { request in
@@ -356,7 +375,7 @@ struct AppStoreConnectClientTests {
                 let resources = try #require(body["data"] as? [[String: String]])
                 #expect(resources.compactMap { $0["id"] } == (0..<10).map { "new-\($0)" })
                 return Self.emptyResponse(for: request, statusCode: 204)
-            }
+            },
         ]
         let count = routes.count
         let session = URLSession(configuration: Self.stubConfiguration(routes: routes))
@@ -371,12 +390,13 @@ struct AppStoreConnectClientTests {
     @Test func deletionFailureStopsBeforeCreatingNewScreenshots() async throws {
         let (folder, file) = try Self.makeScreenshotFile()
         defer { try? FileManager.default.removeItem(at: folder) }
-        let routes = Array(Self.screenshotSetRoutes(oldScreenshotID: "old-shot-1").prefix(2)) + [
-            { request in
-                #expect(request.httpMethod == "DELETE")
-                return Self.emptyResponse(for: request, statusCode: 500)
-            }
-        ]
+        let routes =
+            Array(Self.screenshotSetRoutes(oldScreenshotID: "old-shot-1").prefix(2)) + [
+                { request in
+                    #expect(request.httpMethod == "DELETE")
+                    return Self.emptyResponse(for: request, statusCode: 500)
+                }
+            ]
         let session = URLSession(configuration: Self.stubConfiguration(routes: routes))
         defer { session.invalidateAndCancel() }
         await #expect(throws: AppStoreConnectClientError.self) {
@@ -410,7 +430,7 @@ struct AppStoreConnectClientTests {
                     #expect(request.httpMethod == "PATCH")
                     return Self.emptyResponse(for: request, statusCode: 204)
                 },
-                { request in Self.deliveryStateResponse(for: request, id: "shot-1", state: "COMPLETE") }
+                { request in Self.deliveryStateResponse(for: request, id: "shot-1", state: "COMPLETE") },
             ]
         }
         let count = routes.count
@@ -418,10 +438,13 @@ struct AppStoreConnectClientTests {
         defer { session.invalidateAndCancel() }
         let client = Self.makeClient(session: session)
         if eventuallyEmpty {
-            #expect(try await client.replaceScreenshots(localizationId: "loc-1", displayType: "APP_IPHONE_65", files: [file]) == 1)
+            #expect(
+                try await client.replaceScreenshots(
+                    localizationId: "loc-1", displayType: "APP_IPHONE_65", files: [file]) == 1)
         } else {
             await #expect(throws: AppStoreConnectClientError.screenshotDeletionNotConfirmed) {
-                _ = try await client.replaceScreenshots(localizationId: "loc-1", displayType: "APP_IPHONE_65", files: [file])
+                _ = try await client.replaceScreenshots(
+                    localizationId: "loc-1", displayType: "APP_IPHONE_65", files: [file])
             }
         }
         #expect(StubURLProtocol.requestCount == count)
@@ -440,23 +463,25 @@ struct AppStoreConnectClientTests {
     }
 
     @Test func reviewSubmissionConflictWithoutReusableSubmissionKeepsAppleMessage() async throws {
-        let session = URLSession(configuration: Self.stubConfiguration(routes: [
-            { request in
-                #expect(request.httpMethod == "POST")
-                #expect(request.url?.path == "/v1/reviewSubmissions")
-                return Self.jsonResponse(
-                    for: request,
-                    statusCode: 409,
-                    body: #"{"errors":[{"status":"409","code":"STATE_ERROR","title":"A build is required","detail":"Select a build before submitting."}]}"#
-                )
-            },
-            { request in
-                let query = request.url?.query ?? ""
-                #expect(request.url?.path == "/v1/reviewSubmissions")
-                #expect(query.contains("filter%5Bapp%5D=app-1") || query.contains("filter[app]=app-1"))
-                return Self.jsonResponse(for: request, body: #"{"data":[]}"#)
-            }
-        ]))
+        let session = URLSession(
+            configuration: Self.stubConfiguration(routes: [
+                { request in
+                    #expect(request.httpMethod == "POST")
+                    #expect(request.url?.path == "/v1/reviewSubmissions")
+                    return Self.jsonResponse(
+                        for: request,
+                        statusCode: 409,
+                        body:
+                            #"{"errors":[{"status":"409","code":"STATE_ERROR","title":"A build is required","detail":"Select a build before submitting."}]}"#
+                    )
+                },
+                { request in
+                    let query = request.url?.query ?? ""
+                    #expect(request.url?.path == "/v1/reviewSubmissions")
+                    #expect(query.contains("filter%5Bapp%5D=app-1") || query.contains("filter[app]=app-1"))
+                    return Self.jsonResponse(for: request, body: #"{"data":[]}"#)
+                },
+            ]))
         let client = Self.makeClient(session: session)
 
         do {
@@ -469,35 +494,42 @@ struct AppStoreConnectClientTests {
     }
 
     @Test func reviewSubmissionConflictReusesUnsubmittedDraft() async throws {
-        let session = URLSession(configuration: Self.stubConfiguration(routes: [
-            { request in
-                Self.jsonResponse(for: request, statusCode: 409, body: #"{"errors":[{"status":"409","title":"Conflict"}]}"#)
-            },
-            { request in
-                // A rejected submission is listed first, but the never-submitted
-                // draft is the one an interrupted attempt left behind.
-                Self.jsonResponse(
-                    for: request,
-                    body: """
-                    {"data":[
-                      {"id":"rs-rejected","type":"reviewSubmissions","attributes":{"state":"UNRESOLVED_ISSUES","platform":"IOS","submittedDate":"2026-09-01T10:00:00Z"}},
-                      {"id":"rs-draft","type":"reviewSubmissions","attributes":{"state":"READY_FOR_REVIEW","platform":"IOS"}}
-                    ]}
-                    """
-                )
-            },
-            { request in
-                #expect(request.url?.path == "/v1/reviewSubmissionItems")
-                let body = request.httpBody ?? request.httpBodyStream.map { Self.readStream($0) } ?? Data()
-                #expect(String(decoding: body, as: UTF8.self).contains("rs-draft"))
-                return Self.jsonResponse(for: request, body: #"{"data":{"id":"item-1","type":"reviewSubmissionItems"}}"#)
-            },
-            { request in
-                #expect(request.httpMethod == "PATCH")
-                #expect(request.url?.path == "/v1/reviewSubmissions/rs-draft")
-                return Self.jsonResponse(for: request, body: #"{"data":{"id":"rs-draft","type":"reviewSubmissions","attributes":{"state":"WAITING_FOR_REVIEW"}}}"#)
-            }
-        ]))
+        let session = URLSession(
+            configuration: Self.stubConfiguration(routes: [
+                { request in
+                    Self.jsonResponse(
+                        for: request, statusCode: 409, body: #"{"errors":[{"status":"409","title":"Conflict"}]}"#)
+                },
+                { request in
+                    // A rejected submission is listed first, but the never-submitted
+                    // draft is the one an interrupted attempt left behind.
+                    Self.jsonResponse(
+                        for: request,
+                        body: """
+                            {"data":[
+                              {"id":"rs-rejected","type":"reviewSubmissions","attributes":{"state":"UNRESOLVED_ISSUES","platform":"IOS","submittedDate":"2026-09-01T10:00:00Z"}},
+                              {"id":"rs-draft","type":"reviewSubmissions","attributes":{"state":"READY_FOR_REVIEW","platform":"IOS"}}
+                            ]}
+                            """
+                    )
+                },
+                { request in
+                    #expect(request.url?.path == "/v1/reviewSubmissionItems")
+                    let body = request.httpBody ?? request.httpBodyStream.map { Self.readStream($0) } ?? Data()
+                    #expect(String(decoding: body, as: UTF8.self).contains("rs-draft"))
+                    return Self.jsonResponse(
+                        for: request, body: #"{"data":{"id":"item-1","type":"reviewSubmissionItems"}}"#)
+                },
+                { request in
+                    #expect(request.httpMethod == "PATCH")
+                    #expect(request.url?.path == "/v1/reviewSubmissions/rs-draft")
+                    return Self.jsonResponse(
+                        for: request,
+                        body:
+                            #"{"data":{"id":"rs-draft","type":"reviewSubmissions","attributes":{"state":"WAITING_FOR_REVIEW"}}}"#
+                    )
+                },
+            ]))
         let client = Self.makeClient(session: session)
 
         let state = try await client.submitForReview(appId: "app-1", versionId: "v-1", platform: "IOS")
@@ -505,25 +537,32 @@ struct AppStoreConnectClientTests {
     }
 
     @Test func reviewItemConflictForAnotherVersionIsNotTreatedAsAttached() async throws {
-        let session = URLSession(configuration: Self.stubConfiguration(routes: [
-            { request in
-                Self.jsonResponse(for: request, body: #"{"data":{"id":"rs-1","type":"reviewSubmissions","attributes":{"state":"READY_FOR_REVIEW"}}}"#)
-            },
-            { request in
-                Self.jsonResponse(
-                    for: request,
-                    statusCode: 409,
-                    body: #"{"errors":[{"status":"409","title":"Missing screenshots","detail":"Upload screenshots for every required size."}]}"#
-                )
-            },
-            { request in
-                #expect(request.url?.path == "/v1/reviewSubmissions/rs-1/items")
-                return Self.jsonResponse(
-                    for: request,
-                    body: #"{"data":[{"id":"item-9","type":"reviewSubmissionItems","relationships":{"appStoreVersion":{"data":{"type":"appStoreVersions","id":"other-version"}}}}]}"#
-                )
-            }
-        ]))
+        let session = URLSession(
+            configuration: Self.stubConfiguration(routes: [
+                { request in
+                    Self.jsonResponse(
+                        for: request,
+                        body:
+                            #"{"data":{"id":"rs-1","type":"reviewSubmissions","attributes":{"state":"READY_FOR_REVIEW"}}}"#
+                    )
+                },
+                { request in
+                    Self.jsonResponse(
+                        for: request,
+                        statusCode: 409,
+                        body:
+                            #"{"errors":[{"status":"409","title":"Missing screenshots","detail":"Upload screenshots for every required size."}]}"#
+                    )
+                },
+                { request in
+                    #expect(request.url?.path == "/v1/reviewSubmissions/rs-1/items")
+                    return Self.jsonResponse(
+                        for: request,
+                        body:
+                            #"{"data":[{"id":"item-9","type":"reviewSubmissionItems","relationships":{"appStoreVersion":{"data":{"type":"appStoreVersions","id":"other-version"}}}}]}"#
+                    )
+                },
+            ]))
         let client = Self.makeClient(session: session)
 
         do {
@@ -550,32 +589,33 @@ struct AppStoreConnectClientTests {
     }
 
     @Test func screenshotSetsAreFetchedWithTheirScreenshotsInOneRequest() async throws {
-        let session = URLSession(configuration: Self.stubConfiguration(routes: [
-            { request in
-                #expect(request.url?.path == "/v1/appStoreVersionLocalizations/loc-1/appScreenshotSets")
-                #expect(request.url?.query?.contains("include=appScreenshots") == true)
-                return Self.jsonResponse(
-                    for: request,
-                    body: """
-                    {
-                      "data": [{
-                        "id": "set-1", "type": "appScreenshotSets",
-                        "attributes": {"screenshotDisplayType": "APP_IPHONE_65"},
-                        "relationships": {"appScreenshots": {"data": [
-                          {"type": "appScreenshots", "id": "shot-2"},
-                          {"type": "appScreenshots", "id": "shot-1"}
-                        ]}}
-                      }],
-                      "included": [
-                        {"id": "shot-1", "type": "appScreenshots", "attributes": {"fileName": "one.png", "fileSize": 10,
-                          "imageAsset": {"templateUrl": "https://img.example.test/a/{w}x{h}bb.{f}", "width": 1242, "height": 2688}}},
-                        {"id": "shot-2", "type": "appScreenshots", "attributes": {"fileName": "two.png", "fileSize": 20}}
-                      ]
-                    }
-                    """
-                )
-            }
-        ]))
+        let session = URLSession(
+            configuration: Self.stubConfiguration(routes: [
+                { request in
+                    #expect(request.url?.path == "/v1/appStoreVersionLocalizations/loc-1/appScreenshotSets")
+                    #expect(request.url?.query?.contains("include=appScreenshots") == true)
+                    return Self.jsonResponse(
+                        for: request,
+                        body: """
+                            {
+                              "data": [{
+                                "id": "set-1", "type": "appScreenshotSets",
+                                "attributes": {"screenshotDisplayType": "APP_IPHONE_65"},
+                                "relationships": {"appScreenshots": {"data": [
+                                  {"type": "appScreenshots", "id": "shot-2"},
+                                  {"type": "appScreenshots", "id": "shot-1"}
+                                ]}}
+                              }],
+                              "included": [
+                                {"id": "shot-1", "type": "appScreenshots", "attributes": {"fileName": "one.png", "fileSize": 10,
+                                  "imageAsset": {"templateUrl": "https://img.example.test/a/{w}x{h}bb.{f}", "width": 1242, "height": 2688}}},
+                                {"id": "shot-2", "type": "appScreenshots", "attributes": {"fileName": "two.png", "fileSize": 20}}
+                              ]
+                            }
+                            """
+                    )
+                }
+            ]))
         let client = Self.makeClient(session: session)
 
         let sets = try await client.fetchScreenshotSets(localizationId: "loc-1")
@@ -609,19 +649,24 @@ struct AppStoreConnectClientTests {
             return #"{"choices":[{"message":{"content":"\#(escaped)"}}]}"#
         }
         let folderPath = folder.path
-        let session = URLSession(configuration: Self.stubConfiguration(routes: [
-            { request in
-                let body = String(decoding: request.httpBody ?? request.httpBodyStream.map { Self.readStream($0) } ?? Data(), as: UTF8.self)
-                #expect(body.components(separatedBy: "base64,").count - 1 == 12)
-                #expect(!body.contains(folderPath))
-                return Self.jsonResponse(for: request, body: answer("screenshot-1", locale: "ja"))
-            },
-            { request in
-                let body = String(decoding: request.httpBody ?? request.httpBodyStream.map { Self.readStream($0) } ?? Data(), as: UTF8.self)
-                #expect(body.components(separatedBy: "base64,").count - 1 == 1)
-                return Self.jsonResponse(for: request, body: answer("screenshot-13", locale: "ko"))
-            }
-        ]))
+        let session = URLSession(
+            configuration: Self.stubConfiguration(routes: [
+                { request in
+                    let body = String(
+                        decoding: request.httpBody ?? request.httpBodyStream.map { Self.readStream($0) } ?? Data(),
+                        as: UTF8.self)
+                    #expect(body.components(separatedBy: "base64,").count - 1 == 12)
+                    #expect(!body.contains(folderPath))
+                    return Self.jsonResponse(for: request, body: answer("screenshot-1", locale: "ja"))
+                },
+                { request in
+                    let body = String(
+                        decoding: request.httpBody ?? request.httpBodyStream.map { Self.readStream($0) } ?? Data(),
+                        as: UTF8.self)
+                    #expect(body.components(separatedBy: "base64,").count - 1 == 1)
+                    return Self.jsonResponse(for: request, body: answer("screenshot-13", locale: "ko"))
+                },
+            ]))
         let service = OpenAIScreenshotVisionAIService(
             urlSession: session,
             baseURL: URL(string: "https://vision.example.test/v1")!,
@@ -629,7 +674,8 @@ struct AppStoreConnectClientTests {
             cachedKey: "test-key"
         )
 
-        let assignments = try await service.classifyScreenshotLocales(assets: assets, knownLocales: ["ja", "ko"], appName: nil)
+        let assignments = try await service.classifyScreenshotLocales(
+            assets: assets, knownLocales: ["ja", "ko"], appName: nil)
 
         #expect(StubURLProtocol.requestCount == 2)
         #expect(assignments.map(\.assetID) == [assets[0].id, assets[12].id])
@@ -649,16 +695,20 @@ struct AppStoreConnectClientTests {
     }
 
     @Test func fetchingVersionLocalizationsDoesNotRequestSubtitle() async throws {
-        let session = URLSession(configuration: Self.stubConfiguration(routes: [
-            { request in
-                let components = try #require(URLComponents(url: request.url!, resolvingAgainstBaseURL: false))
-                let fieldItem = components.queryItems?.first(where: { $0.name == "fields[appStoreVersionLocalizations]" })
-                let fields = try #require(fieldItem?.value)
-                #expect(!fields.split(separator: ",").contains("subtitle"))
-                return Self.jsonResponse(for: request, body: #"{"data":[]}"#)
-            }
-        ]))
-        let credentials = AppStoreConnectCredentials(name: "Test", issuerId: "issuer", keyId: "key", privateKeyPEM: P256.Signing.PrivateKey().pemRepresentation)
+        let session = URLSession(
+            configuration: Self.stubConfiguration(routes: [
+                { request in
+                    let components = try #require(URLComponents(url: request.url!, resolvingAgainstBaseURL: false))
+                    let fieldItem = components.queryItems?.first(where: {
+                        $0.name == "fields[appStoreVersionLocalizations]"
+                    })
+                    let fields = try #require(fieldItem?.value)
+                    #expect(!fields.split(separator: ",").contains("subtitle"))
+                    return Self.jsonResponse(for: request, body: #"{"data":[]}"#)
+                }
+            ]))
+        let credentials = AppStoreConnectCredentials(
+            name: "Test", issuerId: "issuer", keyId: "key", privateKeyPEM: P256.Signing.PrivateKey().pemRepresentation)
         let client = AppStoreConnectClient(credentials: credentials, session: session)
         #expect(try await client.fetchLocalizations(versionId: "v-1").isEmpty)
     }
@@ -693,8 +743,8 @@ struct AppStoreConnectClientTests {
         jsonResponse(
             for: request,
             body: """
-            {"data":[{"id":"\(id)","type":"appScreenshots","attributes":{"assetDeliveryState":{"state":"\(state)","errors":\(errors)}}}]}
-            """
+                {"data":[{"id":"\(id)","type":"appScreenshots","attributes":{"assetDeliveryState":{"state":"\(state)","errors":\(errors)}}}]}
+                """
         )
     }
 
@@ -722,16 +772,21 @@ struct AppStoreConnectClientTests {
             { request in
                 #expect(request.httpMethod == "GET")
                 #expect(request.url?.path == "/v1/appStoreVersionLocalizations/loc-1/appScreenshotSets")
-                return jsonResponse(for: request, body: #"{"data":[{"id":"set-1","type":"appScreenshotSets","attributes":{"screenshotDisplayType":"APP_IPHONE_65"}}]}"#)
+                return jsonResponse(
+                    for: request,
+                    body:
+                        #"{"data":[{"id":"set-1","type":"appScreenshotSets","attributes":{"screenshotDisplayType":"APP_IPHONE_65"}}]}"#
+                )
             },
             { request in
                 #expect(request.httpMethod == "GET")
                 #expect(request.url?.path == "/v1/appScreenshotSets/set-1/appScreenshots")
-                let old = oldScreenshotID.map {
-                    #"{"id":"\#($0)","type":"appScreenshots","attributes":{"fileName":"old.png","fileSize":1}}"#
-                } ?? ""
+                let old =
+                    oldScreenshotID.map {
+                        #"{"id":"\#($0)","type":"appScreenshots","attributes":{"fileName":"old.png","fileSize":1}}"#
+                    } ?? ""
                 return jsonResponse(for: request, body: #"{"data":[\#(old)]}"#)
-            }
+            },
         ]
         if let oldScreenshotID {
             routes += [
@@ -744,16 +799,18 @@ struct AppStoreConnectClientTests {
                     #expect(request.httpMethod == "GET")
                     #expect(request.url?.path == "/v1/appScreenshotSets/set-1/appScreenshots")
                     return jsonResponse(for: request, body: #"{"data":[]}"#)
-                }
+                },
             ]
         }
         routes.append { request in
             #expect(request.httpMethod == "POST")
             #expect(request.url?.path == "/v1/appScreenshots")
-            return jsonResponse(for: request, body: """
-            {"data":{"id":"shot-1","type":"appScreenshots","attributes":{"fileName":"one.png","fileSize":5,
-            "uploadOperations":[{"method":"PUT","url":"https://upload.example.test/shot-1","offset":0,"length":5,"requestHeaders":[]}]}}}
-            """)
+            return jsonResponse(
+                for: request,
+                body: """
+                    {"data":{"id":"shot-1","type":"appScreenshots","attributes":{"fileName":"one.png","fileSize":5,
+                    "uploadOperations":[{"method":"PUT","url":"https://upload.example.test/shot-1","offset":0,"length":5,"requestHeaders":[]}]}}}
+                    """)
         }
         return routes
     }
@@ -823,7 +880,10 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
             throw NSError(
                 domain: "ShipNotesTests.StubURLProtocol",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "No stub route for \(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "")"]
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "No stub route for \(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "")"
+                ]
             )
         }
         return try routes.removeFirst()(request)
@@ -863,42 +923,46 @@ struct AppStoreConnectRetryTests {
     }
 
     @Test func retryAfterHeaderIsHonored() throws {
-        let response = try #require(HTTPURLResponse(
-            url: URL(string: "https://api.appstoreconnect.apple.com")!,
-            statusCode: 429,
-            httpVersion: nil,
-            headerFields: ["Retry-After": "2"]
-        ))
+        let response = try #require(
+            HTTPURLResponse(
+                url: URL(string: "https://api.appstoreconnect.apple.com")!,
+                statusCode: 429,
+                httpVersion: nil,
+                headerFields: ["Retry-After": "2"]
+            ))
         // 2 seconds → 2_000_000_000 ns exactly (header wins over backoff).
         #expect(HTTPRetryPolicy.retryDelayNanos(attempt: 1, response: response) == 2_000_000_000)
     }
 
     @Test func rateLimitResetAfterHeaderIsHonored() throws {
-        let response = try #require(HTTPURLResponse(
-            url: URL(string: "https://api.ads.apple.com/v1/campaigns/query")!,
-            statusCode: 429,
-            httpVersion: nil,
-            headerFields: ["RateLimit-Reset-After": "3"]
-        ))
+        let response = try #require(
+            HTTPURLResponse(
+                url: URL(string: "https://api.ads.apple.com/v1/campaigns/query")!,
+                statusCode: 429,
+                httpVersion: nil,
+                headerFields: ["RateLimit-Reset-After": "3"]
+            ))
         #expect(HTTPRetryPolicy.retryDelayNanos(attempt: 1, response: response) == 3_000_000_000)
     }
 
     @Test func retryAfterHeaderIsCappedAndMalformedValuesFallBackSafely() throws {
-        let capped = try #require(HTTPURLResponse(
-            url: URL(string: "https://api.appstoreconnect.apple.com")!,
-            statusCode: 429,
-            httpVersion: nil,
-            headerFields: ["Retry-After": "600"]
-        ))
-        #expect(HTTPRetryPolicy.retryDelayNanos(attempt: 1, response: capped) == 120_000_000_000)
-
-        for invalidValue in ["-1", "nan"] {
-            let malformed = try #require(HTTPURLResponse(
+        let capped = try #require(
+            HTTPURLResponse(
                 url: URL(string: "https://api.appstoreconnect.apple.com")!,
                 statusCode: 429,
                 httpVersion: nil,
-                headerFields: ["Retry-After": invalidValue]
+                headerFields: ["Retry-After": "600"]
             ))
+        #expect(HTTPRetryPolicy.retryDelayNanos(attempt: 1, response: capped) == 120_000_000_000)
+
+        for invalidValue in ["-1", "nan"] {
+            let malformed = try #require(
+                HTTPURLResponse(
+                    url: URL(string: "https://api.appstoreconnect.apple.com")!,
+                    statusCode: 429,
+                    httpVersion: nil,
+                    headerFields: ["Retry-After": invalidValue]
+                ))
             let nanos = HTTPRetryPolicy.retryDelayNanos(attempt: 1, response: malformed)
             #expect(nanos > 0)
             #expect(nanos <= 30_000_000_000)
@@ -924,9 +988,11 @@ struct AppStoreConnectRetryTests {
     }
 
     @Test func versionLocalizationRequestExcludesAppInfoFields() throws {
-        let body = ASCLocalizationUpdateRequest(id: "loc-1", metadata: StoreMetadataFields(
-            subtitle: "Local subtitle", description: "Description", privacyPolicyURL: "https://example.com/privacy"
-        ))
+        let body = ASCLocalizationUpdateRequest(
+            id: "loc-1",
+            metadata: StoreMetadataFields(
+                subtitle: "Local subtitle", description: "Description", privacyPolicyURL: "https://example.com/privacy"
+            ))
         let attributes = try encodeAttributes(body)
         #expect(attributes["subtitle"] == nil)
         #expect(attributes["privacyPolicyUrl"] == nil)
@@ -972,8 +1038,8 @@ struct AppStoreConnectRetryTests {
 
     @Test func ascErrorItemNamesTheFailingAttribute() throws {
         let json = """
-        {"errors":[{"status":"409","code":"ENTITY_ERROR.ATTRIBUTE.TYPE","title":"The request failed","detail":"must be a valid RFC 3986 URI","source":{"pointer":"/data/attributes/supportUrl"}}]}
-        """
+            {"errors":[{"status":"409","code":"ENTITY_ERROR.ATTRIBUTE.TYPE","title":"The request failed","detail":"must be a valid RFC 3986 URI","source":{"pointer":"/data/attributes/supportUrl"}}]}
+            """
         let decoded = try JSONDecoder().decode(ASCErrorResponse.self, from: Data(json.utf8))
         let message = try #require(decoded.errors.first?.displayMessage)
         #expect(message.contains("supportUrl"))

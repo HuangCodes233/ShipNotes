@@ -61,8 +61,9 @@ extension ReleaseNotesParser {
         for line in text.components(separatedBy: .newlines) {
             let range = NSRange(line.startIndex..<line.endIndex, in: line)
             if let match = Self.changelogVersionHeading.firstMatch(in: line, range: range),
-               let levelRange = Range(match.range(at: 1), in: line),
-               let versionRange = Range(match.range(at: 2), in: line) {
+                let levelRange = Range(match.range(at: 1), in: line),
+                let versionRange = Range(match.range(at: 2), in: line)
+            {
                 closeSection()
                 versionLevel = line[levelRange].count
                 currentVersion = String(line[versionRange])
@@ -72,9 +73,10 @@ extension ReleaseNotesParser {
             // example `## [Unreleased]` or `# Links`) ends the section; deeper
             // headings such as `### Added` belong to it.
             if currentVersion != nil,
-               let match = Self.changelogHeading.firstMatch(in: line, range: range),
-               let levelRange = Range(match.range(at: 1), in: line),
-               line[levelRange].count <= versionLevel {
+                let match = Self.changelogHeading.firstMatch(in: line, range: range),
+                let levelRange = Range(match.range(at: 1), in: line),
+                line[levelRange].count <= versionLevel
+            {
                 closeSection()
                 continue
             }

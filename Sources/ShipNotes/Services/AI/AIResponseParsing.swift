@@ -22,15 +22,17 @@ enum AIResponseParsing {
         let fenced = #"```(?:json)?\s*\n([\s\S]*?)\n```"#
         if let range = text.range(of: fenced, options: .regularExpression) {
             let chunk = String(text[range])
-            let inner = chunk
+            let inner =
+                chunk
                 .replacingOccurrences(of: #"^```(?:json)?\s*\n"#, with: "", options: .regularExpression)
                 .replacingOccurrences(of: #"\n```\s*$"#, with: "", options: .regularExpression)
             if let json = tryParse(inner) { return json }
         }
 
         if let start = text.firstIndex(of: "{"),
-           let end = text.lastIndex(of: "}"),
-           start < end {
+            let end = text.lastIndex(of: "}"),
+            start < end
+        {
             let candidate = String(text[start...end])
             if let json = tryParse(candidate) { return json }
         }
@@ -118,12 +120,14 @@ enum AIResponseParsing {
 
     private static func providerRejectionReason(in content: String) -> String? {
         let normalized = content.lowercased()
-        guard normalized.contains("request was rejected")
-            || normalized.contains("considered high risk")
-            || normalized.contains("high risk")
-            || normalized.contains("safety policy")
-            || normalized.contains("policy violation")
-            || normalized.contains("violates policy") else {
+        guard
+            normalized.contains("request was rejected")
+                || normalized.contains("considered high risk")
+                || normalized.contains("high risk")
+                || normalized.contains("safety policy")
+                || normalized.contains("policy violation")
+                || normalized.contains("violates policy")
+        else {
             return nil
         }
         return String(content.prefix(240))

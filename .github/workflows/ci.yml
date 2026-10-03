@@ -47,6 +47,10 @@ jobs:
           xcodebuild -version
           xcrun --sdk macosx --show-sdk-version
 
+      - name: Check Swift formatting
+        if: matrix.xcode == '27'
+        run: xcrun swift-format lint --strict --recursive Package.swift Sources Tests
+
       - name: Run tests
         run: swift test
 

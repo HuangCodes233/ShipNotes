@@ -9,7 +9,7 @@ extension AppStoreConnectClient {
             path: "apps",
             queryItems: [
                 URLQueryItem(name: "limit", value: "1"),
-                URLQueryItem(name: "fields[apps]", value: "name,bundleId")
+                URLQueryItem(name: "fields[apps]", value: "name,bundleId"),
             ],
             paged: false
         )
@@ -22,7 +22,7 @@ extension AppStoreConnectClient {
             path: "apps",
             queryItems: [
                 URLQueryItem(name: "limit", value: "200"),
-                URLQueryItem(name: "fields[apps]", value: "name,bundleId")
+                URLQueryItem(name: "fields[apps]", value: "name,bundleId"),
             ]
         )
         let artworkURLs = await fetchArtworkURLs(forAppIds: resources.map(\.id))
@@ -47,7 +47,9 @@ extension AppStoreConnectClient {
             path: "apps/\(appId)/appStoreVersions",
             queryItems: [
                 URLQueryItem(name: "limit", value: "200"),
-                URLQueryItem(name: "fields[appStoreVersions]", value: "platform,versionString,appStoreState,appVersionState,createdDate")
+                URLQueryItem(
+                    name: "fields[appStoreVersions]",
+                    value: "platform,versionString,appStoreState,appVersionState,createdDate"),
             ]
         )
         let versions = resources.map { resource in
@@ -105,7 +107,7 @@ extension AppStoreConnectClient {
             var components = URLComponents(string: "https://itunes.apple.com/lookup")
             components?.queryItems = [
                 URLQueryItem(name: "id", value: batch.joined(separator: ",")),
-                URLQueryItem(name: "entity", value: "software")
+                URLQueryItem(name: "entity", value: "software"),
             ]
             guard let url = components?.url else { continue }
 
@@ -118,7 +120,8 @@ extension AppStoreConnectClient {
                 let lookup = try JSONDecoder().decode(ITunesLookupResponse.self, from: data)
                 for result in lookup.results {
                     guard let trackId = result.trackId,
-                          let artwork = result.bestArtworkURL else { continue }
+                        let artwork = result.bestArtworkURL
+                    else { continue }
                     merged[String(trackId)] = artwork
                 }
             } catch {

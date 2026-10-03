@@ -32,10 +32,13 @@ struct InspectorView: View {
         return HStack(spacing: 8) {
             Image(systemName: "globe")
                 .foregroundStyle(.tint)
-            Picker(L("Locale"), selection: Binding(
-                get: { state.selectedLocale ?? "" },
-                set: { if !$0.isEmpty { state.selectLocale($0) } }
-            )) {
+            Picker(
+                L("Locale"),
+                selection: Binding(
+                    get: { state.selectedLocale ?? "" },
+                    set: { if !$0.isEmpty { state.selectLocale($0) } }
+                )
+            ) {
                 ForEach(state.localeNotes) { note in
                     Text(localeDisplayName(note.locale)).tag(note.locale)
                 }

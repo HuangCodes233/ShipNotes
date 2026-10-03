@@ -1,5 +1,5 @@
-import Testing
 import Foundation
+import Testing
 @testable import ShipNotes
 
 @Suite("Localization", .serialized)
@@ -85,11 +85,13 @@ struct LocalizationTests {
     /// Collect all .swift file URLs under Sources/.
     private func swiftSourceFiles(root: URL) -> [URL] {
         let sourcesDir = root.appending(path: "Sources")
-        guard let enumerator = FileManager.default.enumerator(
-            at: sourcesDir,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) else { return [] }
+        guard
+            let enumerator = FileManager.default.enumerator(
+                at: sourcesDir,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            )
+        else { return [] }
         return enumerator.compactMap { item in
             let url = item as! URL
             guard url.pathExtension == "swift" else { return nil }
@@ -112,10 +114,12 @@ struct LocalizationTests {
             let range = NSRange(content.startIndex..., in: content)
             for match in regex.matches(in: content, options: [], range: range) {
                 guard match.numberOfRanges >= 2,
-                      let keyRange = Range(match.range(at: 1), in: content) else { continue }
+                    let keyRange = Range(match.range(at: 1), in: content)
+                else { continue }
                 let rawKey = String(content[keyRange])
                 // Unescape \" and \\ that appear in Swift string literals.
-                let unescaped = rawKey
+                let unescaped =
+                    rawKey
                     .replacingOccurrences(of: "\\\\", with: "\\")
                     .replacingOccurrences(of: "\\\"", with: "\"")
                 keys.insert(unescaped)
@@ -136,9 +140,11 @@ struct LocalizationTests {
         let range = NSRange(content.startIndex..., in: content)
         for match in regex.matches(in: content, options: [], range: range) {
             guard match.numberOfRanges >= 2,
-                  let keyRange = Range(match.range(at: 1), in: content) else { continue }
+                let keyRange = Range(match.range(at: 1), in: content)
+            else { continue }
             let rawKey = String(content[keyRange])
-            let unescaped = rawKey
+            let unescaped =
+                rawKey
                 .replacingOccurrences(of: "\\\\", with: "\\")
                 .replacingOccurrences(of: "\\\"", with: "\"")
             keys.insert(unescaped)
@@ -165,8 +171,9 @@ struct LocalizationTests {
         let range = NSRange(content.startIndex..., in: content)
         for match in regex.matches(in: content, options: [], range: range) {
             guard match.numberOfRanges >= 3,
-                  let keyRange = Range(match.range(at: 1), in: content),
-                  let valRange = Range(match.range(at: 2), in: content) else { continue }
+                let keyRange = Range(match.range(at: 1), in: content),
+                let valRange = Range(match.range(at: 2), in: content)
+            else { continue }
             let key = String(content[keyRange])
                 .replacingOccurrences(of: "\\\\", with: "\\")
                 .replacingOccurrences(of: "\\\"", with: "\"")
@@ -194,7 +201,8 @@ struct LocalizationTests {
         var allMissing: [String: [String]] = [:]  // locale -> missing keys
 
         for locale in locales {
-            let stringsURL = resourcesDir
+            let stringsURL =
+                resourcesDir
                 .appending(path: "\(locale).lproj")
                 .appending(path: "Localizable.strings")
             let definedKeys = parseStringsKeys(at: stringsURL)
@@ -206,7 +214,10 @@ struct LocalizationTests {
             }
         }
 
-        #expect(allMissing.isEmpty, "Keys used in code but missing from .strings: \(allMissing.map { "[\($0.key)] \($0.value.prefix(5))" }.joined(separator: "; "))")
+        #expect(
+            allMissing.isEmpty,
+            "Keys used in code but missing from .strings: \(allMissing.map { "[\($0.key)] \($0.value.prefix(5))" }.joined(separator: "; "))"
+        )
     }
 
     @Test func formatPlaceholderCountsMatchAcrossLanguages() throws {
@@ -219,7 +230,8 @@ struct LocalizationTests {
 
         var keyValues: [String: [String: String]] = [:]  // locale -> (key -> value)
         for locale in locales {
-            let stringsURL = resourcesDir
+            let stringsURL =
+                resourcesDir
                 .appending(path: "\(locale).lproj")
                 .appending(path: "Localizable.strings")
             keyValues[locale] = parseStringsKeyValue(at: stringsURL)

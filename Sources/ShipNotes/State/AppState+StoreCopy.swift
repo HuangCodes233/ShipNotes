@@ -10,7 +10,8 @@ extension AppState {
     /// same selected locale, validation state and version lock.
     var canSyncSelectedStoreCopy: Bool {
         guard !isSyncing, selectedVersion?.canEditMetadata == true,
-              let selected = selectedStoreCopy else { return false }
+            let selected = selectedStoreCopy
+        else { return false }
         return selected.status == .ready || selected.status == .needsReview
     }
 
@@ -25,7 +26,8 @@ extension AppState {
         guard let index = storeCopyLocales.firstIndex(where: { $0.locale == locale }) else { return }
         // URLs never legitimately carry surrounding whitespace, and raw
         // whitespace fails Apple's RFC 3986 check.
-        let normalized = field.isURLField
+        let normalized =
+            field.isURLField
             ? text.trimmingCharacters(in: .whitespacesAndNewlines)
             : text
         storeCopyLocales[index].localMetadata.setValue(normalized, for: field)
@@ -65,7 +67,8 @@ extension AppState {
                     versionString: versionString
                 )
                 guard self.selectedAppId == requestedAppId,
-                      self.selectedVersionId == requestedVersionId else { return }
+                    self.selectedVersionId == requestedVersionId
+                else { return }
                 guard let index = self.storeCopyLocales.firstIndex(where: { $0.locale == locale }) else { return }
                 self.bumpAICallCount()
                 // Apply AI text only to fields still holding what was sent;
@@ -82,7 +85,8 @@ extension AppState {
                 self.lastError = nil
             } catch {
                 guard self.selectedAppId == requestedAppId,
-                      self.selectedVersionId == requestedVersionId else { return }
+                    self.selectedVersionId == requestedVersionId
+                else { return }
                 self.handleError(error)
             }
         }
@@ -116,7 +120,7 @@ extension AppState {
     /// retried sync actually re-attempts them instead of hitting the `default`
     /// skip branch, and so a row can't be stuck showing "syncing" forever
     /// (see the matching release-notes recovery).
-    internal func recoverStaleStoreCopyStates() {
+    func recoverStaleStoreCopyStates() {
         for index in storeCopyLocales.indices {
             switch storeCopyLocales[index].status {
             case .failed, .syncing:
@@ -166,7 +170,8 @@ extension AppState {
             }.value
 
             guard selectedAppId == requestedAppId,
-                  selectedVersionId == requestedVersionId else { return }
+                selectedVersionId == requestedVersionId
+            else { return }
 
             switch outcome {
             case .parsed(let parsed, let source):
@@ -196,7 +201,7 @@ extension AppState {
             candidates.append(contentsOf: FileScannerUtils.metadataFolderCandidates(under: current))
             candidates.append(contentsOf: [
                 current.appending(path: "AppStore"),
-                current
+                current,
             ])
             let parent = current.deletingLastPathComponent()
             guard parent.path != current.path else { break }
@@ -226,11 +231,12 @@ extension AppState {
 
         func walk(_ folder: URL, depth: Int) -> Bool {
             guard depth <= 3 else { return false }
-            let entries = (try? fm.contentsOfDirectory(
-                at: folder,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles]
-            )) ?? []
+            let entries =
+                (try? fm.contentsOfDirectory(
+                    at: folder,
+                    includingPropertiesForKeys: [.isDirectoryKey],
+                    options: [.skipsHiddenFiles]
+                )) ?? []
             for entry in entries {
                 let values = try? entry.resourceValues(forKeys: [.isDirectoryKey])
                 if values?.isDirectory == true {
@@ -292,7 +298,7 @@ extension AppState {
         }
     }
 
-    internal func runAIStoreCopyParse(
+    func runAIStoreCopyParse(
         url: URL,
         defaultLocale: String?,
         knownRemoteLocales: [String],
@@ -302,7 +308,8 @@ extension AppState {
         requestedVersionId: String?
     ) async {
         guard selectedAppId == requestedAppId,
-              selectedVersionId == requestedVersionId else { return }
+            selectedVersionId == requestedVersionId
+        else { return }
         guard !isAIRunning else { return }
         guard aiService.isConfigured else {
             handleError(AIServiceError.notConfigured)
@@ -327,11 +334,13 @@ extension AppState {
             // The parse landed after one or more suspensions - bail if the
             // user switched app/version in the meantime.
             guard !Task.isCancelled,
-                  selectedAppId == requestedAppId,
-                  selectedVersionId == requestedVersionId else { return }
-            let partials = Dictionary(uniqueKeysWithValues: metadata.map { locale, fields in
-                (locale, Self.partialStoreMetadata(from: fields))
-            })
+                selectedAppId == requestedAppId,
+                selectedVersionId == requestedVersionId
+            else { return }
+            let partials = Dictionary(
+                uniqueKeysWithValues: metadata.map { locale, fields in
+                    (locale, Self.partialStoreMetadata(from: fields))
+                })
             let sourceFiles = Dictionary(uniqueKeysWithValues: metadata.keys.map { ($0, url) })
             let parsed = ParsedStoreCopy(
                 locales: partials,
@@ -345,7 +354,8 @@ extension AppState {
             self.lastError = nil
         } catch {
             guard selectedAppId == requestedAppId,
-                  selectedVersionId == requestedVersionId else { return }
+                selectedVersionId == requestedVersionId
+            else { return }
             if case AIServiceError.noContentExtracted = error {
                 self.setError(L("AI could not extract any store copy from this file."))
             } else {
@@ -369,7 +379,7 @@ extension AppState {
         #endif
     }
 
-    internal func rebuildStoreCopyLocales() {
+    func rebuildStoreCopyLocales() {
         let knownLocales = Set(localeNotes.map(\.locale))
             .union(remoteNotesByLocale.keys)
             .union(storeCopyLocales.map(\.locale))
@@ -387,7 +397,7 @@ extension AppState {
         selectedStoreCopyLocale = rows.first?.locale
     }
 
-    internal func applyImportedStoreCopy(_ parsed: ParsedStoreCopy) {
+    func applyImportedStoreCopy(_ parsed: ParsedStoreCopy) {
         var importedLocales: [String] = []
         for (locale, partial) in parsed.locales {
             guard !partial.isEmpty else { continue }
@@ -418,7 +428,7 @@ extension AppState {
         return partial
     }
 
-    internal func makeStoreCopy(
+    func makeStoreCopy(
         locale: String,
         localMetadata: StoreMetadataFields,
         remoteNote: RemoteLocaleNote?
@@ -426,7 +436,8 @@ extension AppState {
         let remoteMetadata = remoteNote?.storeMetadata
         let issues = validateStoreMetadata(localMetadata)
         let changedCount = StoreCopyField.allCases.filter { field in
-            field.isVersionLocalizationField && localMetadata.value(for: field) != (remoteMetadata?.value(for: field) ?? "")
+            field.isVersionLocalizationField
+                && localMetadata.value(for: field) != (remoteMetadata?.value(for: field) ?? "")
         }.count
         let status = computeStoreCopyStatus(
             localMetadata: localMetadata,
@@ -445,11 +456,12 @@ extension AppState {
         )
     }
 
-    internal func recalculateStoreCopy(at index: Int) {
+    func recalculateStoreCopy(at index: Int) {
         let row = storeCopyLocales[index]
         let issues = validateStoreMetadata(row.localMetadata)
         let changedCount = StoreCopyField.allCases.filter { field in
-            field.isVersionLocalizationField && row.localMetadata.value(for: field) != (row.remoteMetadata?.value(for: field) ?? "")
+            field.isVersionLocalizationField
+                && row.localMetadata.value(for: field) != (row.remoteMetadata?.value(for: field) ?? "")
         }.count
         storeCopyLocales[index].validationIssues = issues
         storeCopyLocales[index].changedFieldCount = changedCount
@@ -461,31 +473,36 @@ extension AppState {
         )
     }
 
-    internal func validateStoreMetadata(_ metadata: StoreMetadataFields) -> [StoreCopyIssue] {
+    func validateStoreMetadata(_ metadata: StoreMetadataFields) -> [StoreCopyIssue] {
         var issues: [StoreCopyIssue] = []
         if metadata.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            issues.append(.init(
-                field: .description,
-                severity: .error,
-                message: L("Description cannot be empty")
-            ))
+            issues.append(
+                .init(
+                    field: .description,
+                    severity: .error,
+                    message: L("Description cannot be empty")
+                ))
         }
 
         for field in StoreCopyField.allCases {
             let value = metadata.value(for: field)
             if let limit = field.limit, value.count > limit {
-                issues.append(.init(
-                    field: field,
-                    severity: .error,
-                    message: L("%1$@ exceeds App Store limit of %2$d characters (currently %3$d)", field.title, limit, value.count)
-                ))
+                issues.append(
+                    .init(
+                        field: field,
+                        severity: .error,
+                        message: L(
+                            "%1$@ exceeds App Store limit of %2$d characters (currently %3$d)", field.title, limit,
+                            value.count)
+                    ))
             }
             if !field.isURLField, validator.containsMarkdown(value) {
-                issues.append(.init(
-                    field: field,
-                    severity: .warning,
-                    message: L("%@ contains Markdown syntax. App Store shows plain text.", field.title)
-                ))
+                issues.append(
+                    .init(
+                        field: field,
+                        severity: .warning,
+                        message: L("%@ contains Markdown syntax. App Store shows plain text.", field.title)
+                    ))
             }
         }
 
@@ -493,19 +510,23 @@ extension AppState {
             let value = metadata.value(for: field).trimmingCharacters(in: .whitespacesAndNewlines)
             guard !value.isEmpty else { continue }
             guard Self.isValidHTTPURL(value) else {
-                issues.append(.init(
-                    field: field,
-                    severity: .error,
-                    message: L("%@ must be a valid http:// or https:// URL.", field.title)
-                ))
+                issues.append(
+                    .init(
+                        field: field,
+                        severity: .error,
+                        message: L("%@ must be a valid http:// or https:// URL.", field.title)
+                    ))
                 continue
             }
             guard Self.isPercentEncodedURI(value) else {
-                issues.append(.init(
-                    field: field,
-                    severity: .error,
-                    message: L("%@ contains spaces or unencoded non-ASCII characters. Percent-encode the URL before syncing.", field.title)
-                ))
+                issues.append(
+                    .init(
+                        field: field,
+                        severity: .error,
+                        message: L(
+                            "%@ contains spaces or unencoded non-ASCII characters. Percent-encode the URL before syncing.",
+                            field.title)
+                    ))
                 continue
             }
         }
@@ -514,9 +535,10 @@ extension AppState {
 
     internal static func isValidHTTPURL(_ value: String) -> Bool {
         guard let components = URLComponents(string: value),
-              let scheme = components.scheme?.lowercased(),
-              ["http", "https"].contains(scheme),
-              components.host?.isEmpty == false else {
+            let scheme = components.scheme?.lowercased(),
+            ["http", "https"].contains(scheme),
+            components.host?.isEmpty == false
+        else {
             return false
         }
         return true
@@ -537,8 +559,9 @@ extension AppState {
             guard character.isASCII, uriAllowedCharacters.contains(character) else { return false }
             if character == "%" {
                 guard characters.indices.contains(index + 2),
-                      characters[index + 1].isASCII, characters[index + 1].hexDigitValue != nil,
-                      characters[index + 2].isASCII, characters[index + 2].hexDigitValue != nil else {
+                    characters[index + 1].isASCII, characters[index + 1].hexDigitValue != nil,
+                    characters[index + 2].isASCII, characters[index + 2].hexDigitValue != nil
+                else {
                     return false
                 }
                 index += 3
@@ -552,7 +575,7 @@ extension AppState {
     /// Returns false when any locale failed, so submit-for-review can abort
     /// without relying on the global `lastError`.
     @discardableResult
-    internal func syncLiveStoreCopyLocales(_ locales: [String], generation: UUID? = nil) async -> Bool {
+    func syncLiveStoreCopyLocales(_ locales: [String], generation: UUID? = nil) async -> Bool {
         guard let service = appStoreService, let versionId = selectedVersionId else { return false }
         let requestedAppId = selectedAppId
         recoverStaleStoreCopyStates()
@@ -598,13 +621,17 @@ extension AppState {
                         // A version-localization response does not contain app-info fields.
                         // Preserve those drafts, and any edits made during the request.
                         for field in StoreCopyField.allCases where field.isVersionLocalizationField {
-                            if storeCopyLocales[updatedIndex].localMetadata.value(for: field) == row.localMetadata.value(for: field) {
-                                storeCopyLocales[updatedIndex].localMetadata.setValue(remote.storeMetadata.value(for: field), for: field)
+                            if storeCopyLocales[updatedIndex].localMetadata.value(for: field)
+                                == row.localMetadata.value(for: field)
+                            {
+                                storeCopyLocales[updatedIndex].localMetadata.setValue(
+                                    remote.storeMetadata.value(for: field), for: field)
                             }
                         }
                         recalculateStoreCopy(at: updatedIndex)
                         if storeCopyLocales[updatedIndex].changedFieldCount == 0,
-                           storeCopyLocales[updatedIndex].validationIssues.allSatisfy({ $0.severity != .error }) {
+                            storeCopyLocales[updatedIndex].validationIssues.allSatisfy({ $0.severity != .error })
+                        {
                             storeCopyLocales[updatedIndex].status = .synced
                         }
                     }
@@ -623,7 +650,8 @@ extension AppState {
                 results[locale] = .failed(L("Store copy has fields over the App Store limit."))
             case .invalid:
                 // Name the offending field instead of only the generic banner.
-                let detail = storeCopyLocales[index].validationIssues
+                let detail =
+                    storeCopyLocales[index].validationIssues
                     .first { $0.severity == .error }?.message
                     ?? L("Store copy has invalid fields. Fix them before syncing.")
                 setError(detail)
@@ -648,13 +676,15 @@ extension AppState {
         // Clear the banner only when the whole batch succeeded — clearing
         // per-locale would wipe an error raised by an earlier row in the
         // same run.
-        if !results.values.contains(where: { if case .failed = $0 { return true }; return false }) {
+        if !results.values.contains(where: {
+            if case .failed = $0 { return true }; return false
+        }) {
             lastError = nil
         }
         return !results.values.contains { if case .failed = $0 { true } else { false } }
     }
 
-    internal func syncLiveStoreCopyField(locale: String, field: StoreCopyField, generation: UUID? = nil) async {
+    func syncLiveStoreCopyField(locale: String, field: StoreCopyField, generation: UUID? = nil) async {
         guard let service = appStoreService, let versionId = selectedVersionId else { return }
         guard let index = storeCopyLocales.firstIndex(where: { $0.locale == locale }) else { return }
         guard storeCopyFieldCanSync(storeCopyLocales[index], field: field) else { return }
@@ -722,7 +752,7 @@ extension AppState {
         }
     }
 
-    internal func storeCopyFieldCanSync(_ row: StoreCopyLocale, field: StoreCopyField) -> Bool {
+    func storeCopyFieldCanSync(_ row: StoreCopyLocale, field: StoreCopyField) -> Bool {
         guard field.isVersionLocalizationField else { return false }
         let localValue = row.localMetadata.value(for: field)
         let remoteValue = row.remoteMetadata?.value(for: field) ?? ""
@@ -730,8 +760,9 @@ extension AppState {
         // The PATCH omits empty URL attributes (Apple rejects ""), so it can't
         // clear a URL that exists remotely — say so instead of silently no-op'ing.
         if field.isURLField,
-           localValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           !remoteValue.isEmpty {
+            localValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            !remoteValue.isEmpty
+        {
             setError(L("%@ cannot be cleared on App Store Connect. Replace it with a different URL.", field.title))
             return false
         }
@@ -742,7 +773,7 @@ extension AppState {
         return true
     }
 
-    internal func computeStoreCopyStatus(
+    func computeStoreCopyStatus(
         localMetadata: StoreMetadataFields,
         remoteMetadata: StoreMetadataFields?,
         changedFieldCount: Int,

@@ -82,12 +82,15 @@ struct PromoteVersionSheet: View {
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(state.appleAdsKeywordSeeds, id: \.self) { phrase in
-                    Toggle(phrase, isOn: Binding(
-                        get: { selectedKeywords.contains(phrase) },
-                        set: { on in
-                            if on { selectedKeywords.insert(phrase) } else { selectedKeywords.remove(phrase) }
-                        }
-                    ))
+                    Toggle(
+                        phrase,
+                        isOn: Binding(
+                            get: { selectedKeywords.contains(phrase) },
+                            set: { on in
+                                if on { selectedKeywords.insert(phrase) } else { selectedKeywords.remove(phrase) }
+                            }
+                        )
+                    )
                     .toggleStyle(.checkbox)
                 }
             }
@@ -188,12 +191,15 @@ private struct FlexibleCountryList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(storefronts, id: \.self) { code in
-                Toggle(code, isOn: Binding(
-                    get: { selected.contains(code) },
-                    set: { on in
-                        if on { selected.insert(code) } else { selected.remove(code) }
-                    }
-                ))
+                Toggle(
+                    code,
+                    isOn: Binding(
+                        get: { selected.contains(code) },
+                        set: { on in
+                            if on { selected.insert(code) } else { selected.remove(code) }
+                        }
+                    )
+                )
                 .toggleStyle(.checkbox)
             }
         }

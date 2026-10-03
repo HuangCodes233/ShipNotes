@@ -64,9 +64,11 @@ struct DiffEngine {
             oldEnd -= 1
             newEnd -= 1
         }
-        let unchanged = prefix + (oldLines.count - oldEnd) + commonLineCount(
-            oldLines[prefix..<oldEnd], newLines[prefix..<newEnd]
-        )
+        let unchanged =
+            prefix + (oldLines.count - oldEnd)
+            + commonLineCount(
+                oldLines[prefix..<oldEnd], newLines[prefix..<newEnd]
+            )
         return DiffSummary(
             added: newLines.count - unchanged,
             removed: oldLines.count - unchanged,

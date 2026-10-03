@@ -1,5 +1,5 @@
-import Foundation
 import CoreServices
+import Foundation
 
 /// Watches a directory tree for file changes using FSEventStream (recursive).
 /// Debounces rapid events and invokes `onChange` on the main queue.
@@ -39,15 +39,19 @@ final class FileWatcher {
             }
         }
 
-        guard let stream = FSEventStreamCreate(
-            nil,
-            callback,
-            &context,
-            pathsToWatch,
-            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
-            0.3, // latency before delivering events (seconds)
-            UInt32(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer | kFSEventStreamCreateFlagUseCFTypes)
-        ) else { return }
+        guard
+            let stream = FSEventStreamCreate(
+                nil,
+                callback,
+                &context,
+                pathsToWatch,
+                FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+                0.3,  // latency before delivering events (seconds)
+                UInt32(
+                    kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer
+                        | kFSEventStreamCreateFlagUseCFTypes)
+            )
+        else { return }
 
         FSEventStreamSetDispatchQueue(stream, DispatchQueue.main)
         FSEventStreamStart(stream)

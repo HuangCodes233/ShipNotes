@@ -12,7 +12,7 @@ extension AppStoreConnectClient {
                 URLQueryItem(
                     name: "fields[appStoreVersionLocalizations]",
                     value: "locale,description,keywords,marketingUrl,promotionalText,supportUrl,whatsNew"
-                )
+                ),
             ]
         )
         return resources.compactMap(remoteLocaleNote)
@@ -46,7 +46,9 @@ extension AppStoreConnectClient {
         return note
     }
 
-    func updateStoreMetadataField(localizationId: String, field: StoreCopyField, value: String) async throws -> RemoteLocaleNote {
+    func updateStoreMetadataField(
+        localizationId: String, field: StoreCopyField, value: String
+    ) async throws -> RemoteLocaleNote {
         let body = ASCLocalizationUpdateRequest(id: localizationId, field: field, value: value)
         let response = try await requestResource(
             ASCLocalizationResource.self,

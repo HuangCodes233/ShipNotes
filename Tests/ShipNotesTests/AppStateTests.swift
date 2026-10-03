@@ -1,5 +1,5 @@
-import Testing
 import Foundation
+import Testing
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -153,13 +153,16 @@ struct AppStateTests {
         let state = AppState(aiService: mock, defaults: makeTestDefaults())
         state.bootstrapWithMockData()
         guard let locale = state.selectedStoreCopyLocale,
-              let before = state.selectedStoreCopy?.localMetadata else {
+            let before = state.selectedStoreCopy?.localMetadata
+        else {
             Issue.record("No store copy locale"); return
         }
 
         state.optimizeStoreCopyLocale(locale)
         for _ in 0..<50 {
-            if state.storeCopyLocales.first(where: { $0.locale == locale })?.localMetadata.description.contains("Optimized") == true {
+            if state.storeCopyLocales.first(where: { $0.locale == locale })?.localMetadata.description.contains(
+                "Optimized") == true
+            {
                 break
             }
             try? await Task.sleep(nanoseconds: 20_000_000)
@@ -215,7 +218,11 @@ struct AppStateTests {
         """.write(to: url, atomically: true, encoding: .utf8)
 
         state.loadStoreCopySource(url)
-        #expect(await waitUntil { state.storeCopyLocales.first { $0.locale == locale }?.localMetadata.description == "Imported description." })
+        #expect(
+            await waitUntil {
+                state.storeCopyLocales.first { $0.locale == locale }?.localMetadata.description
+                    == "Imported description."
+            })
 
         let updated = state.storeCopyLocales.first { $0.locale == locale }?.localMetadata
         #expect(updated?.description == "Imported description.")
@@ -249,7 +256,9 @@ struct AppStateTests {
 
         state.loadStoreCopySource(folder)
         for _ in 0..<100 {
-            if state.storeCopyLocales.first(where: { $0.locale == "en-US" })?.localMetadata.description.contains("ExampleLearningApp") == true {
+            if state.storeCopyLocales.first(where: { $0.locale == "en-US" })?.localMetadata.description.contains(
+                "ExampleLearningApp") == true
+            {
                 break
             }
             try? await Task.sleep(nanoseconds: 20_000_000)
@@ -290,7 +299,8 @@ struct AppStateTests {
         state.loadStoreCopySource(project.appending(path: "AppStore/Screenshots/Final"))
         // Foundation versions differ in whether a discovered directory URL
         // ends in a slash. Assert the chosen folder, not its URL spelling.
-        #expect(await waitUntil { state.storeCopySourceURL?.standardizedFileURL.path == metadata.standardizedFileURL.path })
+        #expect(
+            await waitUntil { state.storeCopySourceURL?.standardizedFileURL.path == metadata.standardizedFileURL.path })
 
         let updated = state.storeCopyLocales.first { $0.locale == "en-US" }?.localMetadata
         #expect(updated?.description == "ExampleHydrationApp is a gentle hydration reminder app.")
@@ -326,7 +336,8 @@ struct AppStateTests {
         """.write(to: metadata.appending(path: "en.md"), atomically: true, encoding: .utf8)
 
         state.importURL(final)
-        #expect(await waitUntil { state.storeCopySourceURL?.standardizedFileURL.path == metadata.standardizedFileURL.path })
+        #expect(
+            await waitUntil { state.storeCopySourceURL?.standardizedFileURL.path == metadata.standardizedFileURL.path })
 
         let updated = state.storeCopyLocales.first { $0.locale == "en-US" }?.localMetadata
         #expect(updated?.description == "ExampleHydrationApp tracks water intake with quiet reminders.")
@@ -360,7 +371,9 @@ struct AppStateTests {
         #expect(state.canReparseCurrentStoreCopyWithAI)
         state.askAIToReparseCurrentStoreCopy()
         for _ in 0..<100 {
-            if state.storeCopyLocales.first(where: { $0.locale == "en-US" })?.localMetadata.description == "AI reparsed store copy." {
+            if state.storeCopyLocales.first(where: { $0.locale == "en-US" })?.localMetadata.description
+                == "AI reparsed store copy."
+            {
                 break
             }
             try? await Task.sleep(nanoseconds: 20_000_000)
@@ -424,12 +437,15 @@ struct AppStateTests {
         )
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
         state.isUsingMockData = false
-        let metadata = StoreMetadataFields(subtitle: "Keep this draft", description: "Updated", keywords: "updated", promotionalText: "Now updated", privacyPolicyURL: "https://example.com/privacy")
+        let metadata = StoreMetadataFields(
+            subtitle: "Keep this draft", description: "Updated", keywords: "updated", promotionalText: "Now updated",
+            privacyPolicyURL: "https://example.com/privacy")
         state.storeCopyLocales = [
             StoreCopyLocale(
                 locale: "en-US",
@@ -496,15 +512,16 @@ struct AppStateTests {
         let service = MockASCService()
         service.fetchedLocalizationsByVersion = [
             "v-101": [
-                RemoteLocaleNote(localizationId: "loc-old", locale: "zh-Hans", text: "为 1.0.1 稳定更新整理了 App Store 文案和审核说明。")
+                RemoteLocaleNote(
+                    localizationId: "loc-old", locale: "zh-Hans", text: "为 1.0.1 稳定更新整理了 App Store 文案和审核说明。")
             ],
             "v-110": [
                 RemoteLocaleNote(localizationId: "loc-new", locale: "zh-Hans", text: "")
-            ]
+            ],
         ]
         service.fetchLocalizationDelayNanosecondsByVersion = [
             "v-101": 120_000_000,
-            "v-110": 0
+            "v-110": 0,
         ]
 
         let state = AppState(
@@ -514,8 +531,12 @@ struct AppStateTests {
         )
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-101", appId: "app-1", versionString: "1.0.1", platform: "iOS", appStoreState: .prepareForSubmission),
-            ReleaseVersion(id: "v-110", appId: "app-1", versionString: "1.1.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-101", appId: "app-1", versionString: "1.0.1", platform: "iOS",
+                appStoreState: .prepareForSubmission),
+            ReleaseVersion(
+                id: "v-110", appId: "app-1", versionString: "1.1.0", platform: "iOS",
+                appStoreState: .prepareForSubmission),
         ]
         state.selectedAppId = "app-1"
         state.isUsingMockData = false
@@ -547,8 +568,10 @@ struct AppStateTests {
         )
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission),
-            ReleaseVersion(id: "v-2", appId: "app-1", versionString: "2.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission),
+            ReleaseVersion(
+                id: "v-2", appId: "app-1", versionString: "2.0", platform: "iOS", appStoreState: .prepareForSubmission),
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -624,7 +647,10 @@ struct AppStateTests {
         // otherwise "Watch Folder" only ever fires once.
         try "• Second body".write(to: file, atomically: true, encoding: .utf8)
         state.reloadFromSource()
-        #expect(await waitUntil { state.localeNotes.first { $0.locale == "en-US" }?.localText.contains("Second body") == true })
+        #expect(
+            await waitUntil {
+                state.localeNotes.first { $0.locale == "en-US" }?.localText.contains("Second body") == true
+            })
 
         #expect(state.watching)
         #expect(state.sourceFolder == file)
@@ -648,7 +674,8 @@ struct AppStateTests {
         )
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -694,7 +721,8 @@ struct AppStateTests {
         )
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -717,7 +745,8 @@ struct AppStateTests {
         state.selectedStoreCopyLocale = "de-DE"
 
         state.syncStoreCopyLocale("de-DE")
-        for _ in 0..<50 where service.lastUpdatedStoreMetadata == nil || state.storeCopyLocales.first?.status == .syncing {
+        for _ in 0..<50
+        where service.lastUpdatedStoreMetadata == nil || state.storeCopyLocales.first?.status == .syncing {
             try? await Task.sleep(nanoseconds: 20_000_000)
         }
 
@@ -737,7 +766,8 @@ struct AppStateTests {
         )
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -800,22 +830,26 @@ struct AppStateTests {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appending(path: "en.md")
         let metadata = """
-        # Metadata
+            # Metadata
 
-        ## 1. App Name
-        ```
-        Example App
-        ```
+            ## 1. App Name
+            ```
+            Example App
+            ```
 
-        ## 9. What's New
-        ```
-        • Correct release note body
-        ```
-        """
+            ## 9. What's New
+            ```
+            • Correct release note body
+            ```
+            """
         try metadata.write(to: url, atomically: true, encoding: .utf8)
 
         state.loadFolder(url)
-        #expect(await waitUntil { state.localeNotes.first { $0.locale == "en-US" }?.localText.contains("Correct release note body") == true })
+        #expect(
+            await waitUntil {
+                state.localeNotes.first { $0.locale == "en-US" }?.localText.contains("Correct release note body")
+                    == true
+            })
 
         #expect(state.pendingImport == nil)
         #expect(state.localeNotes.first { $0.locale == "en-US" }?.localText.contains("Example App") == false)
@@ -829,18 +863,18 @@ struct AppStateTests {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appending(path: "en.md")
         let metadata = """
-        # Metadata
+            # Metadata
 
-        ## App Name
-        ```
-        Example App
-        ```
+            ## App Name
+            ```
+            Example App
+            ```
 
-        ## Notes
-        ```
-        Candidate release note body
-        ```
-        """
+            ## Notes
+            ```
+            Candidate release note body
+            ```
+            """
         try metadata.write(to: url, atomically: true, encoding: .utf8)
 
         state.loadFolder(url)
@@ -849,7 +883,10 @@ struct AppStateTests {
 
         state.confirmPendingImport()
         #expect(state.pendingImport == nil)
-        #expect(await waitUntil { state.localeNotes.first { $0.locale == "en-US" }?.localText.contains("Example App") == true })
+        #expect(
+            await waitUntil {
+                state.localeNotes.first { $0.locale == "en-US" }?.localText.contains("Example App") == true
+            })
         #expect(state.localeNotes.first { $0.locale == "en-US" }?.localText.contains("Example App") == true)
     }
 
@@ -900,7 +937,7 @@ struct AppStateTests {
                 remoteText: "Traditional Chinese",
                 status: .noChange,
                 diffSummary: nil
-            )
+            ),
         ]
 
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
@@ -926,9 +963,10 @@ struct AppStateTests {
         #expect(coverageLocales.contains("en-US"))
         #expect(coverageLocales.contains("zh-Hant"))
         #expect(state.screenshotCoverageGroups.first { $0.locale == "zh-Hant" }?.assets.isEmpty == true)
-        #expect(state.screenshotIssues.contains {
-            $0.locale == "zh-Hant" && $0.title == expectedLocalized("Missing required screenshot size")
-        })
+        #expect(
+            state.screenshotIssues.contains {
+                $0.locale == "zh-Hant" && $0.title == expectedLocalized("Missing required screenshot size")
+            })
     }
 
     @Test func genericEnglishScreenshotFolderCoversEnglishRegionLocales() {
@@ -1044,7 +1082,7 @@ struct AppStateTests {
                     deviceSlot: .iPhone69,
                     status: .ready,
                     contentHash: nil
-                )
+                ),
             ],
             skippedCount: 0
         )
@@ -1143,15 +1181,19 @@ struct AppStateTests {
     @Test func projectDiscoveredScreenshotsKeepTraditionalChineseFolderSeparate() throws {
         let state = AppState(aiKeychainStore: InMemoryAIKeychainStore(), defaults: makeTestDefaults())
         state.apps = [
-            AppRecord(id: "app-exampletimer", name: "ExampleTimer", bundleId: "com.example.exampletimer", platform: "iOS", iconSystemName: "clock")
+            AppRecord(
+                id: "app-exampletimer", name: "ExampleTimer", bundleId: "com.example.exampletimer", platform: "iOS",
+                iconSystemName: "clock")
         ]
         state.versionsByApp["app-exampletimer"] = [
-            ReleaseVersion(id: "version-1", appId: "app-exampletimer", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "version-1", appId: "app-exampletimer", versionString: "1.0", platform: "iOS",
+                appStoreState: .prepareForSubmission)
         ]
         state.selectedAppId = "app-exampletimer"
         state.selectedVersionId = "version-1"
         state.localeNotes = [
-            "de-DE", "en-US", "es-ES", "fr-FR", "ja", "ko", "zh-Hans", "zh-Hant"
+            "de-DE", "en-US", "es-ES", "fr-FR", "ja", "ko", "zh-Hans", "zh-Hant",
         ].map { locale in
             LocaleNote(
                 locale: locale,
@@ -1172,10 +1214,14 @@ struct AppStateTests {
         for folder in [traditional69, traditional65, simplified69, simplified65] {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         }
-        try writePNG(width: 1320, height: 2868, to: traditional69.appending(path: "ExampleTimer_zh-Hant_6_9_01_today_pay.jpg"))
-        try writePNG(width: 1242, height: 2688, to: traditional65.appending(path: "ExampleTimer_zh-Hant_6_5_01_today_pay.jpg"))
-        try writePNG(width: 1320, height: 2868, to: simplified69.appending(path: "ExampleTimer_zh-Hans_6_9_01_today_pay.jpg"))
-        try writePNG(width: 1242, height: 2688, to: simplified65.appending(path: "ExampleTimer_zh-Hans_6_5_01_today_pay.jpg"))
+        try writePNG(
+            width: 1320, height: 2868, to: traditional69.appending(path: "ExampleTimer_zh-Hant_6_9_01_today_pay.jpg"))
+        try writePNG(
+            width: 1242, height: 2688, to: traditional65.appending(path: "ExampleTimer_zh-Hant_6_5_01_today_pay.jpg"))
+        try writePNG(
+            width: 1320, height: 2868, to: simplified69.appending(path: "ExampleTimer_zh-Hans_6_9_01_today_pay.jpg"))
+        try writePNG(
+            width: 1242, height: 2688, to: simplified65.appending(path: "ExampleTimer_zh-Hans_6_5_01_today_pay.jpg"))
 
         state.screenshotScan = try ScreenshotScanner().scan(url: project)
 
@@ -1266,7 +1312,7 @@ struct AppStateTests {
                     contentHash: nil
                 ),
                 sharedPhone69,
-                sharedPhone65
+                sharedPhone65,
             ],
             skippedCount: 0
         )
@@ -1366,7 +1412,7 @@ struct AppStateTests {
         let state = AppState(aiKeychainStore: InMemoryAIKeychainStore(), defaults: makeTestDefaults())
         state.localeNotes = [
             "en-AU", "en-CA", "en-GB", "en-US",
-            "es-ES", "fr-FR", "ja", "ko", "vi", "zh-Hans", "zh-Hant"
+            "es-ES", "fr-FR", "ja", "ko", "vi", "zh-Hans", "zh-Hant",
         ].map { locale in
             LocaleNote(
                 locale: locale,
@@ -1419,7 +1465,7 @@ struct AppStateTests {
                     deviceSlot: .iPhone69,
                     status: .ready,
                     contentHash: nil
-                )
+                ),
             ],
             skippedCount: 0
         )
@@ -1442,7 +1488,8 @@ struct AppStateTests {
             AppRecord(id: "app-1", name: "Demo", bundleId: "com.example.demo", platform: "iOS", iconSystemName: "app")
         ]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -1479,9 +1526,10 @@ struct AppStateTests {
         #expect(state.expectedScreenshotSlots == [.iPhone69, .iPhone65])
         #expect(!state.expectedScreenshotSlots.contains(.iPad13))
         #expect(state.missingRequirementsByLocale["en-US"] == [])
-        #expect(!state.screenshotIssues.contains {
-            $0.title == expectedLocalized("Missing required screenshot size")
-        })
+        #expect(
+            !state.screenshotIssues.contains {
+                $0.title == expectedLocalized("Missing required screenshot size")
+            })
     }
 
     @Test func iosScreenshotsRequireIPadWhenDetectedOrOverridden() {
@@ -1490,7 +1538,8 @@ struct AppStateTests {
             AppRecord(id: "app-1", name: "Demo", bundleId: "com.example.demo", platform: "iOS", iconSystemName: "app")
         ]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -1514,7 +1563,8 @@ struct AppStateTests {
         )
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -1553,7 +1603,7 @@ struct AppStateTests {
                     deviceSlot: .iPad13,
                     status: .ready,
                     contentHash: nil
-                )
+                ),
             ],
             skippedCount: 0
         )
@@ -1587,7 +1637,8 @@ struct AppStateTests {
         )
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -1626,7 +1677,7 @@ struct AppStateTests {
                     deviceSlot: .iPad13,
                     status: .ready,
                     contentHash: nil
-                )
+                ),
             ],
             skippedCount: 0
         )
@@ -1658,7 +1709,9 @@ struct AppStateTests {
         )
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.13.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.13.0", platform: "iOS",
+                appStoreState: .prepareForSubmission)
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -1681,7 +1734,7 @@ struct AppStateTests {
                 remoteText: "Ready",
                 status: .noChange,
                 diffSummary: nil
-            )
+            ),
         ]
 
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
@@ -1707,7 +1760,7 @@ struct AppStateTests {
                     deviceSlot: .iPhone65,
                     status: .ready,
                     contentHash: nil
-                )
+                ),
             ],
             skippedCount: 0
         )
@@ -1731,7 +1784,8 @@ struct AppStateTests {
         )
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -1752,7 +1806,7 @@ struct AppStateTests {
                 remoteText: "Notes pretes",
                 status: .noChange,
                 diffSummary: nil
-            )
+            ),
         ]
 
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
@@ -1787,7 +1841,7 @@ struct AppStateTests {
                     deviceSlot: nil,
                     status: .unsupportedSize,
                     contentHash: nil
-                )
+                ),
             ],
             skippedCount: 0
         )
@@ -1835,7 +1889,8 @@ struct AppStateTests {
         )
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -1893,8 +1948,10 @@ struct AppStateTests {
                 displayType: ScreenshotDeviceSlot.iPhone65.appStoreConnectDisplayType,
                 slot: .iPhone65,
                 screenshots: [
-                    RemoteScreenshot(id: "shot-1", fileName: "one.png", fileSize: nil, imageURL: nil, width: nil, height: nil),
-                    RemoteScreenshot(id: "shot-2", fileName: "two.png", fileSize: nil, imageURL: nil, width: nil, height: nil)
+                    RemoteScreenshot(
+                        id: "shot-1", fileName: "one.png", fileSize: nil, imageURL: nil, width: nil, height: nil),
+                    RemoteScreenshot(
+                        id: "shot-2", fileName: "two.png", fileSize: nil, imageURL: nil, width: nil, height: nil),
                 ]
             ),
             RemoteScreenshotSet(
@@ -1903,9 +1960,10 @@ struct AppStateTests {
                 displayType: ScreenshotDeviceSlot.iPhone69.appStoreConnectDisplayType,
                 slot: .iPhone69,
                 screenshots: [
-                    RemoteScreenshot(id: "shot-3", fileName: "three.png", fileSize: nil, imageURL: nil, width: nil, height: nil)
+                    RemoteScreenshot(
+                        id: "shot-3", fileName: "three.png", fileSize: nil, imageURL: nil, width: nil, height: nil)
                 ]
-            )
+            ),
         ]
         let state = AppState(
             aiKeychainStore: InMemoryAIKeychainStore(),
@@ -1917,8 +1975,12 @@ struct AppStateTests {
         state.selectedVersionId = "v-1"
         state.screenshotIPadSupportOverrides["app-1"] = .ignored
         state.localeNotes = [
-            LocaleNote(locale: "en-US", remoteLocalizationId: "loc-1", localText: "", remoteText: "", status: .noChange, diffSummary: nil),
-            LocaleNote(locale: "ja", remoteLocalizationId: nil, localText: "", remoteText: nil, status: .missing, diffSummary: nil)
+            LocaleNote(
+                locale: "en-US", remoteLocalizationId: "loc-1", localText: "", remoteText: "", status: .noChange,
+                diffSummary: nil),
+            LocaleNote(
+                locale: "ja", remoteLocalizationId: nil, localText: "", remoteText: nil, status: .missing,
+                diffSummary: nil),
         ]
 
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
@@ -1952,7 +2014,7 @@ struct AppStateTests {
             "loc-old": 150_000_000,
             // Generous delay so the "still loading" assertion below has a wide
             // margin on slow CI machines (300ms check vs 1000ms delay).
-            "loc-new": 1_000_000_000
+            "loc-new": 1_000_000_000,
         ]
         service.remoteScreenshotSets["loc-new"] = [
             RemoteScreenshotSet(
@@ -1961,16 +2023,20 @@ struct AppStateTests {
                 displayType: ScreenshotDeviceSlot.iPhone65.appStoreConnectDisplayType,
                 slot: .iPhone65,
                 screenshots: [
-                    RemoteScreenshot(id: "shot-new", fileName: "new.png", fileSize: nil, imageURL: nil, width: nil, height: nil)
+                    RemoteScreenshot(
+                        id: "shot-new", fileName: "new.png", fileSize: nil, imageURL: nil, width: nil, height: nil)
                 ]
             )
         ]
-        let state = AppState(aiKeychainStore: InMemoryAIKeychainStore(), appStoreService: service, defaults: makeTestDefaults())
+        let state = AppState(
+            aiKeychainStore: InMemoryAIKeychainStore(), appStoreService: service, defaults: makeTestDefaults())
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-old"
         state.localeNotes = [
-            LocaleNote(locale: "en-US", remoteLocalizationId: "loc-old", localText: "", remoteText: "", status: .noChange, diffSummary: nil)
+            LocaleNote(
+                locale: "en-US", remoteLocalizationId: "loc-old", localText: "", remoteText: "", status: .noChange,
+                diffSummary: nil)
         ]
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
         state.screenshotScan = ScreenshotScan(
@@ -1997,7 +2063,9 @@ struct AppStateTests {
 
         state.selectedVersionId = "v-new"
         state.localeNotes = [
-            LocaleNote(locale: "en-US", remoteLocalizationId: "loc-new", localText: "", remoteText: "", status: .noChange, diffSummary: nil)
+            LocaleNote(
+                locale: "en-US", remoteLocalizationId: "loc-new", localText: "", remoteText: "", status: .noChange,
+                diffSummary: nil)
         ]
         state.resetRemoteScreenshotCounts()
         state.refreshRemoteScreenshotCounts()
@@ -2033,7 +2101,9 @@ struct AppStateTests {
         state.selectedVersionId = "v-1"
         state.isUsingMockData = false
         state.localeNotes = [
-            LocaleNote(locale: "en-US", remoteLocalizationId: "loc-en", localText: "Hello", remoteText: "Hello", status: .noChange, diffSummary: nil)
+            LocaleNote(
+                locale: "en-US", remoteLocalizationId: "loc-en", localText: "Hello", remoteText: "Hello",
+                status: .noChange, diffSummary: nil)
         ]
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
         state.screenshotScan = ScreenshotScan(
@@ -2093,7 +2163,9 @@ struct AppStateTests {
         state.selectedVersionId = "v-1"
         state.isUsingMockData = false
         state.localeNotes = [
-            LocaleNote(locale: "en-US", remoteLocalizationId: "loc-en", localText: "New", remoteText: "Old", status: .ready, diffSummary: nil)
+            LocaleNote(
+                locale: "en-US", remoteLocalizationId: "loc-en", localText: "New", remoteText: "Old", status: .ready,
+                diffSummary: nil)
         ]
 
         let ok = await state.syncLiveLocales(["en-US"])
@@ -2129,9 +2201,11 @@ struct AppStateTests {
         let state = AppState(aiService: mock, defaults: makeTestDefaults())
         state.bootstrapWithMockData()
 
-        guard let source = state.localeNotes.first(where: {
-            !$0.localText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }) else {
+        guard
+            let source = state.localeNotes.first(where: {
+                !$0.localText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            })
+        else {
             Issue.record("No locale with text"); return
         }
         state.translateLocale(source.locale, fromLocale: source.locale == "ja" ? "en-US" : "ja")
@@ -2150,18 +2224,20 @@ struct AppStateTests {
 
     private func writePNG(width: Int, height: Int, to url: URL) throws {
         #if canImport(AppKit)
-        guard let rep = NSBitmapImageRep(
-            bitmapDataPlanes: nil,
-            pixelsWide: width,
-            pixelsHigh: height,
-            bitsPerSample: 8,
-            samplesPerPixel: 4,
-            hasAlpha: true,
-            isPlanar: false,
-            colorSpaceName: .deviceRGB,
-            bytesPerRow: 0,
-            bitsPerPixel: 0
-        ), let data = rep.representation(using: .png, properties: [:]) else {
+        guard
+            let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: width,
+                pixelsHigh: height,
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: 0,
+                bitsPerPixel: 0
+            ), let data = rep.representation(using: .png, properties: [:])
+        else {
             throw CocoaError(.fileWriteUnknown)
         }
         try data.write(to: url)
@@ -2201,7 +2277,8 @@ struct AppStateTests {
         )
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -2237,7 +2314,8 @@ struct AppStateTests {
         )
         state.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission)
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"

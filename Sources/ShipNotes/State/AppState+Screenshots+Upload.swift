@@ -27,7 +27,8 @@ extension AppState {
 
     func selectScreenshotIssue(_ issue: ScreenshotIssue) {
         if let assetID = issue.assetIDs.first,
-           let asset = screenshotScan?.assets.first(where: { $0.id == assetID }) {
+            let asset = screenshotScan?.assets.first(where: { $0.id == assetID })
+        {
             // Coverage groups use the canonical (version) locale, not the raw
             // scanner guess, so select the group the asset is shown in.
             let locale = canonicalScreenshotLocale(for: asset) ?? ScreenshotScan.unassignedLocaleDisplayName
@@ -67,7 +68,7 @@ extension AppState {
         remoteScreenshotCountsTask = Task { await loadRemoteScreenshotCounts(force: true, requestID: requestID) }
     }
 
-    internal func refreshRemoteScreenshotCountsIfNeeded() {
+    func refreshRemoteScreenshotCountsIfNeeded() {
         guard screenshotScan != nil, appStoreService != nil else { return }
         if remoteScreenshotCountsVersionId != selectedVersionId {
             remoteScreenshotCountsByLocale = [:]
@@ -81,7 +82,7 @@ extension AppState {
         remoteScreenshotCountsTask = Task { await loadRemoteScreenshotCounts(force: false, requestID: requestID) }
     }
 
-    internal func resetRemoteScreenshotCounts() {
+    func resetRemoteScreenshotCounts() {
         remoteScreenshotCountsTask?.cancel()
         remoteScreenshotCountsTask = nil
         remoteScreenshotCountsRequestID = nil
@@ -90,7 +91,7 @@ extension AppState {
         isLoadingRemoteScreenshotCounts = false
     }
 
-    internal func loadRemoteScreenshotCounts(force: Bool, requestID suppliedRequestID: UUID? = nil) async {
+    func loadRemoteScreenshotCounts(force: Bool, requestID suppliedRequestID: UUID? = nil) async {
         let requestID = suppliedRequestID ?? UUID()
         if suppliedRequestID == nil {
             remoteScreenshotCountsTask?.cancel()
@@ -107,8 +108,9 @@ extension AppState {
             return
         }
         if !force,
-           remoteScreenshotCountsVersionId == versionId,
-           locales.allSatisfy({ remoteScreenshotCountsByLocale[$0] != nil }) {
+            remoteScreenshotCountsVersionId == versionId,
+            locales.allSatisfy({ remoteScreenshotCountsByLocale[$0] != nil })
+        {
             if remoteScreenshotCountsRequestID == requestID {
                 remoteScreenshotCountsTask = nil
                 remoteScreenshotCountsRequestID = nil
@@ -150,8 +152,9 @@ extension AppState {
         }
 
         guard !Task.isCancelled,
-              remoteScreenshotCountsRequestID == requestID,
-              selectedVersionId == versionId else { return }
+            remoteScreenshotCountsRequestID == requestID,
+            selectedVersionId == versionId
+        else { return }
         remoteScreenshotCountsByLocale = counts
     }
 
@@ -193,10 +196,11 @@ extension AppState {
         return results
     }
 
-    internal func screenshotPreviewableLocales() -> [String] {
+    func screenshotPreviewableLocales() -> [String] {
         let issues = screenshotIssues
         let slots = Set(uploadableScreenshotSlots)
-        return screenshotCoverageGroups
+        return
+            screenshotCoverageGroups
             .filter {
                 !$0.isUnassigned
                     && !hasBlockingScreenshotIssue(locale: $0.locale, issues: issues)
@@ -205,26 +209,26 @@ extension AppState {
             .map(\.locale)
     }
 
-    internal func hasUploadableScreenshots(locale: String) -> Bool {
+    func hasUploadableScreenshots(locale: String) -> Bool {
         hasUploadableScreenshots(effectiveScreenshotAssets(locale: locale), slots: Set(uploadableScreenshotSlots))
     }
 
     /// Ready screenshots in a slot that will actually be uploaded (an ignored
     /// iPad slot doesn't count), matching what the preview plan includes.
-    internal func hasUploadableScreenshots(_ assets: [ScreenshotAsset], slots: Set<ScreenshotDeviceSlot>) -> Bool {
+    func hasUploadableScreenshots(_ assets: [ScreenshotAsset], slots: Set<ScreenshotDeviceSlot>) -> Bool {
         assets.contains { asset in
             guard asset.status == .ready, let slot = asset.deviceSlot else { return false }
             return slots.contains(slot)
         }
     }
 
-    internal func screenshotHasBlockingIssues(locale: String) -> Bool {
+    func screenshotHasBlockingIssues(locale: String) -> Bool {
         screenshotIssues.contains { issue in
             issue.severity == .error && issue.locale == locale
         }
     }
 
-    internal func prepareScreenshotReplacementPreview(locales: [String]) async {
+    func prepareScreenshotReplacementPreview(locales: [String]) async {
         guard let service = appStoreService else {
             setError(L("Connect App Store Connect before uploading screenshots."), category: .auth)
             return
@@ -266,8 +270,9 @@ extension AppState {
         // that was selected when the preview started. Showing (and later
         // confirming) them after a switch would replace another version's set.
         guard screenshotPreviewRequestID == requestID,
-              selectedAppId == requestedAppId,
-              selectedVersionId == requestedVersionId else { return }
+            selectedAppId == requestedAppId,
+            selectedVersionId == requestedVersionId
+        else { return }
 
         var localePlans: [ScreenshotReplacementLocalePlan] = []
         for candidate in candidates {
@@ -334,7 +339,7 @@ extension AppState {
         }
     }
 
-    internal func uploadScreenshotReplacementPlan(_ plan: ScreenshotReplacementPlan) async {
+    func uploadScreenshotReplacementPlan(_ plan: ScreenshotReplacementPlan) async {
         guard let service = appStoreService, let versionId = plan.versionId ?? selectedVersionId else {
             setError(L("Connect App Store Connect before uploading screenshots."), category: .auth)
             return
@@ -407,8 +412,11 @@ extension AppState {
             case .failure(let locale, let error, let hadRemoteContent):
                 // Replacement deletes old screenshots first. A failed run can
                 // leave this locale empty or only partly uploaded.
-                let message = hadRemoteContent
-                    ? L("%1$@: %2$@ (replacement interrupted — old screenshots may have been deleted and new screenshots may be incomplete; refresh and retry this locale)", locale, error)
+                let message =
+                    hadRemoteContent
+                    ? L(
+                        "%1$@: %2$@ (replacement interrupted — old screenshots may have been deleted and new screenshots may be incomplete; refresh and retry this locale)",
+                        locale, error)
                     : "\(locale): \(error)"
                 failures.append(message)
                 results[locale] = .failed(error)
@@ -428,7 +436,8 @@ extension AppState {
             )
         }
         if uploadedCount > 0 {
-            screenshotUploadSummary = L("Uploaded %1$d screenshot(s) for %2$d locale(s).", uploadedCount, uploadedLocales)
+            screenshotUploadSummary = L(
+                "Uploaded %1$d screenshot(s) for %2$d locale(s).", uploadedCount, uploadedLocales)
         }
         if failures.isEmpty {
             lastError = nil
@@ -440,7 +449,7 @@ extension AppState {
         }
     }
 
-    internal enum LocaleUploadResult: Sendable {
+    enum LocaleUploadResult: Sendable {
         case success(locale: String, count: Int)
         case skipped(locale: String)
         case failure(locale: String, error: String, hadRemoteContent: Bool)
@@ -538,7 +547,7 @@ extension AppState {
     /// `moveScreenshotAsset` use — so locales showing shared or remapped
     /// screenshots keep their order instead of silently reverting to filename
     /// order.
-    internal func reconcileScreenshotOrder() {
+    func reconcileScreenshotOrder() {
         var next: [String: [String]] = [:]
         for group in screenshotCoverageGroups {
             for (slot, assets) in Dictionary(grouping: group.assets, by: \.deviceSlot) {
@@ -547,7 +556,8 @@ extension AppState {
                 let currentIDs = Set(assets.map(\.id))
                 let preserved = previous.filter { currentIDs.contains($0) }
                 let preservedIDs = Set(preserved)
-                let newIDs = assets
+                let newIDs =
+                    assets
                     .sorted(by: screenshotAssetSort)
                     .map(\.id)
                     .filter { !preservedIDs.contains($0) }
@@ -557,11 +567,11 @@ extension AppState {
         screenshotOrderByGroup = next
     }
 
-    internal func screenshotOrderKey(locale: String, slot: ScreenshotDeviceSlot?) -> String {
+    func screenshotOrderKey(locale: String, slot: ScreenshotDeviceSlot?) -> String {
         "\(locale)|\(slot?.rawValue ?? "unsupported")"
     }
 
-    internal func screenshotAssetSort(_ lhs: ScreenshotAsset, _ rhs: ScreenshotAsset) -> Bool {
+    func screenshotAssetSort(_ lhs: ScreenshotAsset, _ rhs: ScreenshotAsset) -> Bool {
         lhs.relativePath.localizedStandardCompare(rhs.relativePath) == .orderedAscending
     }
 
@@ -580,8 +590,11 @@ extension AppState {
         #endif
     }
 
-    internal static func loadScreenshotIPadSupportOverrides(defaults: UserDefaults = .standard) -> [String: ScreenshotIPadSupportOverride] {
-        guard let stored = defaults.dictionary(forKey: SettingsKey.screenshotIPadSupportOverrides) as? [String: String] else {
+    internal static func loadScreenshotIPadSupportOverrides(
+        defaults: UserDefaults = .standard
+    ) -> [String: ScreenshotIPadSupportOverride] {
+        guard let stored = defaults.dictionary(forKey: SettingsKey.screenshotIPadSupportOverrides) as? [String: String]
+        else {
             return [:]
         }
         return stored.reduce(into: [:]) { result, pair in
@@ -591,12 +604,12 @@ extension AppState {
         }
     }
 
-    internal func persistScreenshotIPadSupportOverrides() {
+    func persistScreenshotIPadSupportOverrides() {
         let stored = screenshotIPadSupportOverrides.mapValues(\.rawValue)
         defaults.set(stored, forKey: SettingsKey.screenshotIPadSupportOverrides)
     }
 
-    internal func selectedScreenshotPlatformContains(_ needle: String) -> Bool {
+    func selectedScreenshotPlatformContains(_ needle: String) -> Bool {
         selectedScreenshotPlatform.contains(needle)
     }
 
@@ -609,7 +622,6 @@ extension AppState {
         }
         persistScreenshotIPadSupportOverrides()
     }
-
 
     // MARK: - View State Computations
 
@@ -657,7 +669,8 @@ extension AppState {
                 && !hasBlockingScreenshotIssue(locale: group.locale, issues: issues)
                 && hasUploadableScreenshots(group.assets, slots: slots)
         }
-        let allReason: String? = hasPreviewableLocale
+        let allReason: String? =
+            hasPreviewableLocale
             ? nil
             : (screenshotBlockingIssueCount > 0
                 ? L("Every uploadable locale has blocking screenshot issues.")
@@ -669,9 +682,8 @@ extension AppState {
         )
     }
 
-    internal func hasBlockingScreenshotIssue(locale: String, issues: [ScreenshotIssue]) -> Bool {
+    func hasBlockingScreenshotIssue(locale: String, issues: [ScreenshotIssue]) -> Bool {
         issues.contains { $0.locale == locale && $0.severity == .error }
     }
-
 
 }

@@ -69,16 +69,23 @@ struct OpenAIService: AIService {
             "response_format": ["type": "json_object"],
             "temperature": 0,
             "messages": [
-                ["role": "system", "content": AIPrompts.parseSystemPrompt(formatInstructions: """
-You MUST respond with a single valid JSON object of the form:
-  {"locales": {"<locale_code>": "<release notes body>", ...}}
-""")],
-                ["role": "user", "content": AIPrompts.parseUserPrompt(
-                    text: text,
-                    currentVersion: currentVersion,
-                    knownRemoteLocales: knownRemoteLocales
-                )]
-            ]
+                [
+                    "role": "system",
+                    "content": AIPrompts.parseSystemPrompt(
+                        formatInstructions: """
+                            You MUST respond with a single valid JSON object of the form:
+                              {"locales": {"<locale_code>": "<release notes body>", ...}}
+                            """),
+                ],
+                [
+                    "role": "user",
+                    "content": AIPrompts.parseUserPrompt(
+                        text: text,
+                        currentVersion: currentVersion,
+                        knownRemoteLocales: knownRemoteLocales
+                    ),
+                ],
+            ],
         ]
         let response = try await postChatCompletion(body: body)
         let content = try Self.extractMessageContent(response)
@@ -100,17 +107,24 @@ You MUST respond with a single valid JSON object of the form:
             "response_format": ["type": "json_object"],
             "temperature": 0,
             "messages": [
-                ["role": "system", "content": AIPrompts.translateSystemPrompt(formatInstructions: """
-You MUST respond with a single valid JSON object of the form:
-  {"translated_text": "<the translated body>"}
-""")],
-                ["role": "user", "content": AIPrompts.translateUserPrompt(
-                    text: text,
-                    fromLocale: fromLocale,
-                    toLocale: toLocale,
-                    glossary: glossary
-                )]
-            ]
+                [
+                    "role": "system",
+                    "content": AIPrompts.translateSystemPrompt(
+                        formatInstructions: """
+                            You MUST respond with a single valid JSON object of the form:
+                              {"translated_text": "<the translated body>"}
+                            """),
+                ],
+                [
+                    "role": "user",
+                    "content": AIPrompts.translateUserPrompt(
+                        text: text,
+                        fromLocale: fromLocale,
+                        toLocale: toLocale,
+                        glossary: glossary
+                    ),
+                ],
+            ],
         ]
         let response = try await postChatCompletion(body: body)
         let content = try Self.extractMessageContent(response)
@@ -135,26 +149,33 @@ You MUST respond with a single valid JSON object of the form:
             "response_format": ["type": "json_object"],
             "temperature": 0,
             "messages": [
-                ["role": "system", "content": AIPrompts.storeMetadataParseSystemPrompt(formatInstructions: """
-You MUST respond with a single valid JSON object of the form:
-  {"locales": {"<locale_code>": {
-    "subtitle": "...",
-    "description": "...",
-    "keywords": "...",
-    "promotionalText": "...",
-    "supportURL": "...",
-    "marketingURL": "...",
-    "privacyPolicyURL": "..."
-  }}}
-""")],
-                ["role": "user", "content": AIPrompts.storeMetadataParseUserPrompt(
-                    text: text,
-                    defaultLocale: defaultLocale,
-                    knownRemoteLocales: knownRemoteLocales,
-                    appName: appName,
-                    versionString: versionString
-                )]
-            ]
+                [
+                    "role": "system",
+                    "content": AIPrompts.storeMetadataParseSystemPrompt(
+                        formatInstructions: """
+                            You MUST respond with a single valid JSON object of the form:
+                              {"locales": {"<locale_code>": {
+                                "subtitle": "...",
+                                "description": "...",
+                                "keywords": "...",
+                                "promotionalText": "...",
+                                "supportURL": "...",
+                                "marketingURL": "...",
+                                "privacyPolicyURL": "..."
+                              }}}
+                            """),
+                ],
+                [
+                    "role": "user",
+                    "content": AIPrompts.storeMetadataParseUserPrompt(
+                        text: text,
+                        defaultLocale: defaultLocale,
+                        knownRemoteLocales: knownRemoteLocales,
+                        appName: appName,
+                        versionString: versionString
+                    ),
+                ],
+            ],
         ]
         let response = try await postChatCompletion(body: body)
         let content = try Self.extractMessageContent(response)
@@ -176,25 +197,32 @@ You MUST respond with a single valid JSON object of the form:
             "response_format": ["type": "json_object"],
             "temperature": 0.2,
             "messages": [
-                ["role": "system", "content": AIPrompts.storeMetadataSystemPrompt(formatInstructions: """
-You MUST respond with a single valid JSON object:
-{
-  "subtitle": "...",
-  "description": "...",
-  "keywords": "...",
-  "promotionalText": "...",
-  "supportURL": "...",
-  "marketingURL": "...",
-  "privacyPolicyURL": "..."
-}
-""")],
-                ["role": "user", "content": AIPrompts.storeMetadataUserPrompt(
-                    metadata: metadata,
-                    locale: locale,
-                    appName: appName,
-                    versionString: versionString
-                )]
-            ]
+                [
+                    "role": "system",
+                    "content": AIPrompts.storeMetadataSystemPrompt(
+                        formatInstructions: """
+                            You MUST respond with a single valid JSON object:
+                            {
+                              "subtitle": "...",
+                              "description": "...",
+                              "keywords": "...",
+                              "promotionalText": "...",
+                              "supportURL": "...",
+                              "marketingURL": "...",
+                              "privacyPolicyURL": "..."
+                            }
+                            """),
+                ],
+                [
+                    "role": "user",
+                    "content": AIPrompts.storeMetadataUserPrompt(
+                        metadata: metadata,
+                        locale: locale,
+                        appName: appName,
+                        versionString: versionString
+                    ),
+                ],
+            ],
         ]
         let response = try await postChatCompletion(body: body)
         let content = try Self.extractMessageContent(response)
@@ -239,9 +267,10 @@ You MUST respond with a single valid JSON object:
 
     private static func extractMessageContent(_ response: [String: Any]) throws -> String {
         guard let choices = response["choices"] as? [[String: Any]],
-              let first = choices.first,
-              let message = first["message"] as? [String: Any],
-              let content = message["content"] as? String else {
+            let first = choices.first,
+            let message = first["message"] as? [String: Any],
+            let content = message["content"] as? String
+        else {
             throw AIServiceError.invalidResponse("Response has no choices[0].message.content")
         }
         return content

@@ -34,7 +34,8 @@ struct JWTTokenProviderTests {
     }
 
     private func decodeJSONPart(_ value: String) throws -> [String: Any] {
-        var base64 = value
+        var base64 =
+            value
             .replacingOccurrences(of: "-", with: "+")
             .replacingOccurrences(of: "_", with: "/")
         while base64.count % 4 != 0 {

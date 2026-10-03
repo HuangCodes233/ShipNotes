@@ -125,8 +125,11 @@ struct StoreCopyTextBlock: View {
             VStack(alignment: .leading, spacing: 3) {
                 ForEach(issues) { issue in
                     HStack(alignment: .top, spacing: 6) {
-                        Image(systemName: issue.severity == .error ? "xmark.octagon.fill" : "exclamationmark.triangle.fill")
-                            .foregroundStyle(issue.severity == .error ? Color.red : .orange)
+                        Image(
+                            systemName: issue.severity == .error
+                                ? "xmark.octagon.fill" : "exclamationmark.triangle.fill"
+                        )
+                        .foregroundStyle(issue.severity == .error ? Color.red : .orange)
                         Text(issue.message)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -141,7 +144,6 @@ struct StoreCopyTextBlock: View {
         if issues.contains(where: { $0.severity == .warning }) { return .orange.opacity(0.65) }
         return .secondary.opacity(0.35)
     }
-
 
 }
 
@@ -206,7 +208,6 @@ struct StoreCopyURLField: View {
         }
     }
 
-
 }
 
 struct StoreCopyFieldChangeBadge: View {
@@ -232,8 +233,9 @@ struct StoreCopyFieldChangeBadge: View {
     private var kind: Kind? {
         guard let remoteText else { return nil }
         if localText == remoteText { return .unchanged }
-        if remoteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !localText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if remoteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !localText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
             return .new
         }
         return .changed

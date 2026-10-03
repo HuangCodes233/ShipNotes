@@ -13,10 +13,10 @@ struct MinimalYAMLTests {
 
     @Test func parsesNestedMap() throws {
         let text = """
-        locales:
-          en-US: hello
-          zh-Hans: 你好
-        """
+            locales:
+              en-US: hello
+              zh-Hans: 你好
+            """
         let result = try yaml.parse(text)
         let locales = result["locales"] as? [String: Any]
         #expect(locales?["en-US"] as? String == "hello")
@@ -25,15 +25,15 @@ struct MinimalYAMLTests {
 
     @Test func parsesBlockScalar() throws {
         let text = """
-        version: 1.4.0
-        locales:
-          en-US: |
-            Line one
-            Line two
-          zh-Hans: |
-            第一行
-            第二行
-        """
+            version: 1.4.0
+            locales:
+              en-US: |
+                Line one
+                Line two
+              zh-Hans: |
+                第一行
+                第二行
+            """
         let result = try yaml.parse(text)
         let locales = result["locales"] as? [String: Any]
         let en = locales?["en-US"] as? String
@@ -50,14 +50,14 @@ struct MinimalYAMLTests {
 
     @Test func skipsCommentsAndDocumentMarkers() throws {
         let text = """
-        # Release notes for 1.4.0
-        ---
-        version: 1.4.0 # the upcoming release
-        locales:
-          # English is the primary locale
-          en-US: hello
-        ...
-        """
+            # Release notes for 1.4.0
+            ---
+            version: 1.4.0 # the upcoming release
+            locales:
+              # English is the primary locale
+              en-US: hello
+            ...
+            """
         let result = try yaml.parse(text)
         #expect(result["version"] as? String == "1.4.0")
         let locales = result["locales"] as? [String: Any]

@@ -429,7 +429,7 @@ struct ASCBuildResource: Decodable, Sendable {
     let relationships: Relationships?
 
     struct Attributes: Decodable, Sendable {
-        let version: String?           // CFBundleVersion
+        let version: String?  // CFBundleVersion
         let uploadedDate: Date?
         let expirationDate: Date?
         let processingState: String?

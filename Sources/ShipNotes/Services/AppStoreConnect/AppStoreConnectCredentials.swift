@@ -75,3 +75,8 @@ extension AppStoreConnectCredentials {
         AppStoreConnectCredentialSummary(name: accountName, issuerId: issuerId, keyId: keyId)
     }
 }
+
+enum CredentialLoadResult: Sendable {
+    case success(AppStoreConnectCredentials?)
+    case failure(AppStoreConnectCredentialError)
+}

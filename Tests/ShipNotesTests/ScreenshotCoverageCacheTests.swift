@@ -84,17 +84,19 @@ struct ScreenshotCoverageCacheTests {
     private func makeState(locales: [String]) -> AppState {
         let state = AppState(aiKeychainStore: InMemoryAIKeychainStore(), defaults: makeTestDefaults())
         state.localeNotes = locales.map {
-            LocaleNote(locale: $0, remoteLocalizationId: nil, localText: "Ready",
-                       remoteText: "Ready", status: .noChange, diffSummary: nil)
+            LocaleNote(
+                locale: $0, remoteLocalizationId: nil, localText: "Ready",
+                remoteText: "Ready", status: .noChange, diffSummary: nil)
         }
         return state
     }
 
     private func asset(path: String, locale: String?, width: Int = 1320) -> ScreenshotAsset {
-        ScreenshotAsset(url: root.appending(path: path), relativePath: path,
-                        size: ScreenshotPixelSize(width: width, height: 2868), locale: locale,
-                        deviceSlot: width == 1320 ? .iPhone69 : nil,
-                        status: width == 1320 ? .ready : .unsupportedSize, contentHash: nil)
+        ScreenshotAsset(
+            url: root.appending(path: path), relativePath: path,
+            size: ScreenshotPixelSize(width: width, height: 2868), locale: locale,
+            deviceSlot: width == 1320 ? .iPhone69 : nil,
+            status: width == 1320 ? .ready : .unsupportedSize, contentHash: nil)
     }
 
     private func scan(_ assets: [ScreenshotAsset]) -> ScreenshotScan {

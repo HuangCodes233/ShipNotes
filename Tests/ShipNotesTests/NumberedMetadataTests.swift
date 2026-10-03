@@ -1,5 +1,5 @@
-import Testing
 import Foundation
+import Testing
 @testable import ShipNotes
 
 /// Synthetic numbered metadata sections exercise extraction of What's New
@@ -45,8 +45,9 @@ struct NumberedMetadataTests {
 
         // At least one .high (Recommended) candidate exists → app applies directly,
         // no Import Preview sheet is shown.
-        #expect(candidates.contains { $0.confidence == .high },
-                "Expected at least one Recommended candidate; got titles: \(candidates.map(\.title))")
+        #expect(
+            candidates.contains { $0.confidence == .high },
+            "Expected at least one Recommended candidate; got titles: \(candidates.map(\.title))")
         #expect(!parsed.requiresReview, "Should NOT require review when a Recommended candidate exists")
     }
 
@@ -59,86 +60,86 @@ struct NumberedMetadataTests {
 
     // Synthetic metadata fixture; all product copy is fictional.
     private let numberedMetadata = """
-    # Demo Planner - App Store Metadata (English)
+        # Demo Planner - App Store Metadata (English)
 
-    > Each field matches App Store Connect character limits. Ready to copy-paste.
+        > Each field matches App Store Connect character limits. Ready to copy-paste.
 
-    ---
+        ---
 
-    ## 1. App Name
-    **Limit: 30 characters**
+        ## 1. App Name
+        **Limit: 30 characters**
 
-    ```
-    Demo Planner - Daily Tasks
-    ```
-    (25 chars)
+        ```
+        Demo Planner - Daily Tasks
+        ```
+        (25 chars)
 
-    ### Alternatives
-    ```
-    Demo Planner: Task Lists
-    ```
+        ### Alternatives
+        ```
+        Demo Planner: Task Lists
+        ```
 
-    ---
+        ---
 
-    ## 2. Subtitle
-    **Limit: 30 characters**
+        ## 2. Subtitle
+        **Limit: 30 characters**
 
-    ```
-    Organize everyday tasks
-    ```
+        ```
+        Organize everyday tasks
+        ```
 
-    ---
+        ---
 
-    ## 4. Keywords
-    **Limit: 100 characters, comma-separated, NO spaces**
+        ## 4. Keywords
+        **Limit: 100 characters, comma-separated, NO spaces**
 
-    ```
-    planner,tasks,calendar,lists
-    ```
+        ```
+        planner,tasks,calendar,lists
+        ```
 
-    ---
+        ---
 
-    ## 5. Description
-    **Limit: 4000 characters**
+        ## 5. Description
+        **Limit: 4000 characters**
 
-    ```
-    Demo Planner — Plan Your Next Task
+        ```
+        Demo Planner — Plan Your Next Task
 
-    A fictional planner used only in parser tests.
-    ```
+        A fictional planner used only in parser tests.
+        ```
 
-    ---
+        ---
 
-    ## 9. What's New (version release notes)
-    **First release: "First release"**
+        ## 9. What's New (version release notes)
+        **First release: "First release"**
 
-    ```
-    First release, welcome to Demo Planner
+        ```
+        First release, welcome to Demo Planner
 
-    • Simple task lists
-    • Optional reminders for upcoming tasks
-    • Calendar check-ins for completed tasks
-    • Sort completed and upcoming tasks
+        • Simple task lists
+        • Optional reminders for upcoming tasks
+        • Calendar check-ins for completed tasks
+        • Sort completed and upcoming tasks
 
-    This is synthetic release-note content.
-    ```
+        This is synthetic release-note content.
+        ```
 
-    ---
+        ---
 
-    ## 10. Marketing copy (App Preview / Screenshot captions)
-    **Five-screenshot set:**
+        ## 10. Marketing copy (App Preview / Screenshot captions)
+        **Five-screenshot set:**
 
-    | Screenshot | Caption |
-    |------------|---------|
-    | 01_home | **View your sample tasks** |
+        | Screenshot | Caption |
+        |------------|---------|
+        | 01_home | **View your sample tasks** |
 
-    ---
+        ---
 
-    ## 13. Common rejection pitfalls (English market)
+        ## 13. Common rejection pitfalls (English market)
 
-    | Risk | Mitigation |
-    |------|------------|
-    | Missing screenshot | Attach a synthetic screenshot |
+        | Risk | Mitigation |
+        |------|------------|
+        | Missing screenshot | Attach a synthetic screenshot |
 
-    """
+        """
 }

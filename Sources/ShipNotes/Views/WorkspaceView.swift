@@ -36,7 +36,9 @@ struct WorkspaceView: View {
             guard let url = urls.first else { return false }
             state.loadFolder(url)
             return true
-        } isTargeted: { isDropTargeted = $0 }
+        } isTargeted: {
+            isDropTargeted = $0
+        }
         .dropZoneOverlay(isTargeted: isDropTargeted)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: isDropTargeted)
         .sheet(isPresented: $showNewVersionSheet) {
@@ -81,7 +83,10 @@ struct WorkspaceView: View {
                 }
                 .controlSize(.small)
                 .disabled(state.isLoadingBuilds || !version.canEditMetadata)
-                .help(version.canEditMetadata ? L("Choose which uploaded build to attach to this version.") : L("This version's metadata is locked."))
+                .help(
+                    version.canEditMetadata
+                        ? L("Choose which uploaded build to attach to this version.")
+                        : L("This version's metadata is locked."))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -90,7 +95,8 @@ struct WorkspaceView: View {
     }
 
     private func defaultNewVersionPlatform() -> NewVersionSheet.Platform {
-        let display = state.selectedVersion?.platform
+        let display =
+            state.selectedVersion?.platform
             ?? state.selectedAppId.flatMap { state.versionsByApp[$0]?.first?.platform }
             ?? "iOS"
         return NewVersionSheet.Platform(displayName: display)
@@ -187,12 +193,20 @@ struct WorkspaceView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(L("Drag a project folder, release-notes folder, or file here"))
                     .font(.callout.weight(.medium))
-                Text(state.isUsingMockData ? L("Or use Import Folder in the toolbar. Currently showing sample data.") : L("Or use Import Folder in the toolbar. Current remote notes are loaded from App Store Connect."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(
+                    state.isUsingMockData
+                        ? L("Or use Import Folder in the toolbar. Currently showing sample data.")
+                        : L(
+                            "Or use Import Folder in the toolbar. Current remote notes are loaded from App Store Connect."
+                        )
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
             Spacer()
-            Button { state.presentImportPicker() } label: {
+            Button {
+                state.presentImportPicker()
+            } label: {
                 Label(L("Import"), systemImage: "folder.badge.plus")
             }
             .controlSize(.small)

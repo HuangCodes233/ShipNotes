@@ -40,14 +40,16 @@ func L(_ key: String, _ arguments: any CVarArg...) -> String {
 /// Probe the conventional `.app` location first, fall back to `.module`.
 private let resourceBundle: Bundle = {
     if let url = Bundle.main.url(forResource: "ShipNotes_ShipNotes", withExtension: "bundle"),
-       let bundle = Bundle(url: url) {
+        let bundle = Bundle(url: url)
+    {
         return bundle
     }
     return .module
 }()
 
 private func localizedTemplate(for key: String) -> String {
-    let preferred = LanguageManager.languageOverride
+    let preferred =
+        LanguageManager.languageOverride
         ?? LanguageManager.activeDefaults.string(forKey: LanguageManager.appStorageKey)
         ?? ""
     if !preferred.isEmpty {
@@ -98,19 +100,13 @@ enum LanguageManager {
         defer { bundleCacheLock.unlock() }
         if let cached = bundleCache[languageCode] { return cached }
         guard let path = resourceBundle.path(forResource: languageCode, ofType: "lproj"),
-              let bundle = Bundle(path: path) else {
+            let bundle = Bundle(path: path)
+        else {
             bundleCache[languageCode] = nil
             return nil
         }
         bundleCache[languageCode] = bundle
         return bundle
-    }
-
-    /// Test-only: drop cached lproj bundles (e.g. after swapping `activeDefaults`).
-    static func resetBundleCacheForTesting() {
-        bundleCacheLock.lock()
-        defer { bundleCacheLock.unlock() }
-        bundleCache = [:]
     }
 
     /// Apply the persisted language to `AppleLanguages` at process start so

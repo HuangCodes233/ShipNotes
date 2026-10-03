@@ -25,7 +25,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"
 APP="$DIST/ShipNotes.app"
 CONFIG="${CONFIG:-release}"
-VERSION="${VERSION:-$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo '0.1.0')}"
+VERSION="${VERSION:-$(git -C "$ROOT" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo '0.1.0')}"
 BUILD="${BUILD:-1}"
 SIGN_IDENTITY="${SIGN_IDENTITY:-}"
 BUNDLE_ID="org.shipnotes.app"
@@ -86,7 +86,9 @@ plutil -replace CFBundleVersion -string "$BUILD" "$RES_INFO"
 
 # ─── AppIcon: .appiconset → .iconset → .icns ──────────────────────────────
 echo "→ Building AppIcon.icns from .appiconset"
-TMP_ICONSET="$(mktemp -d)/AppIcon.iconset"
+TMP_ICON_DIR="$(mktemp -d "${TMPDIR:-/tmp}/shipnotes-icon.XXXXXX")"
+trap 'rm -rf "$TMP_ICON_DIR"' EXIT
+TMP_ICONSET="$TMP_ICON_DIR/AppIcon.iconset"
 mkdir -p "$TMP_ICONSET"
 
 # .iconset filename convention vs our .appiconset PNGs.
@@ -102,7 +104,6 @@ cp "$APPICON_SRC/AppIcon-512.png"  "$TMP_ICONSET/icon_512x512.png"
 cp "$APPICON_SRC/AppIcon-1024.png" "$TMP_ICONSET/icon_512x512@2x.png"
 
 iconutil -c icns -o "$APP/Contents/Resources/AppIcon.icns" "$TMP_ICONSET"
-rm -rf "$(dirname "$TMP_ICONSET")"
 
 # ─── Info.plist ───────────────────────────────────────────────────────────
 echo "→ Writing Info.plist"

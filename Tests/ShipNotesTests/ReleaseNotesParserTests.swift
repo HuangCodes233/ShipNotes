@@ -1,5 +1,5 @@
-import Testing
 import Foundation
+import Testing
 @testable import ShipNotes
 
 @Suite("ReleaseNotesParser")
@@ -36,8 +36,10 @@ struct ReleaseNotesParserTests {
         let project = try makeTempFolder()
         let metadata = project.appending(path: "AppStore/metadata")
         try FileManager.default.createDirectory(at: metadata, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: project.appending(path: "design"), withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: project.appending(path: "TiGang.xcodeproj"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: project.appending(path: "design"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: project.appending(path: "TiGang.xcodeproj"), withIntermediateDirectories: true)
         try "English notes from project root.".write(
             to: metadata.appending(path: "en.md"),
             atomically: true,
@@ -85,76 +87,76 @@ struct ReleaseNotesParserTests {
         try FileManager.default.createDirectory(at: metadata, withIntermediateDirectories: true)
 
         let english = """
-        # Demo Planner - App Store Metadata (English)
+            # Demo Planner - App Store Metadata (English)
 
-        > Each field matches App Store Connect character limits. Ready to copy-paste.
+            > Each field matches App Store Connect character limits. Ready to copy-paste.
 
-        ---
+            ---
 
-        ## 1. App Name
-        **Limit: 30 characters**
+            ## 1. App Name
+            **Limit: 30 characters**
 
-        ```
-        Demo Planner - Daily Tasks
-        ```
+            ```
+            Demo Planner - Daily Tasks
+            ```
 
-        ---
+            ---
 
-        ## 5. Description
-        **Limit: 4000 characters**
+            ## 5. Description
+            **Limit: 4000 characters**
 
-        ```
-        This is the long product description and should never be imported as release notes.
-        ```
+            ```
+            This is the long product description and should never be imported as release notes.
+            ```
 
-        ---
+            ---
 
-        ## 9. What's New (version release notes)
-        **First release: "First release"**
+            ## 9. What's New (version release notes)
+            **First release: "First release"**
 
-        ```
-        First release, welcome to Demo Planner
+            ```
+            First release, welcome to Demo Planner
 
-        • Simple task lists
-        • Optional reminders for upcoming tasks
-        • Calendar check-ins for completed tasks
-        • Sort completed and upcoming tasks
+            • Simple task lists
+            • Optional reminders for upcoming tasks
+            • Calendar check-ins for completed tasks
+            • Sort completed and upcoming tasks
 
-        This is synthetic release-note content.
-        ```
-        """
+            This is synthetic release-note content.
+            ```
+            """
 
         let chinese = """
-        # 示例计划 - App Store 提交文案
+            # 示例计划 - App Store 提交文案
 
-        ## 一、App 名称 (App Name)
-        ```
-        示例计划 - 每日任务
-        ```
+            ## 一、App 名称 (App Name)
+            ```
+            示例计划 - 每日任务
+            ```
 
-        ---
+            ---
 
-        ## 五、描述 (Description)
-        ```
-        这是完整产品描述，不应该导入为版本更新说明。
-        ```
+            ## 五、描述 (Description)
+            ```
+            这是完整产品描述，不应该导入为版本更新说明。
+            ```
 
-        ---
+            ---
 
-        ## 九、What's New (版本更新说明)
-        **首次上架填："首次上架"**
+            ## 九、What's New (版本更新说明)
+            **首次上架填："首次上架"**
 
-        ```
-        首次上架，欢迎体验
+            ```
+            首次上架，欢迎体验
 
-        • 查看示例任务列表
-        • 设置任务提醒
-        • 在日历中查看已完成任务
-        • 按状态筛选示例任务
+            • 查看示例任务列表
+            • 设置任务提醒
+            • 在日历中查看已完成任务
+            • 按状态筛选示例任务
 
-        此文案仅用于解析器测试。
-        ```
-        """
+            此文案仅用于解析器测试。
+            ```
+            """
 
         try english.write(to: metadata.appending(path: "en.md"), atomically: true, encoding: .utf8)
         try chinese.write(to: metadata.appending(path: "zh-Hans.md"), atomically: true, encoding: .utf8)
@@ -182,13 +184,13 @@ struct ReleaseNotesParserTests {
     @Test func parsesYAMLFile() throws {
         let folder = try makeTempFolder()
         let yaml = """
-        version: 1.5.0
-        locales:
-          en-US: |
-            Bug fixes.
-          zh-Hans: |
-            修复问题。
-        """
+            version: 1.5.0
+            locales:
+              en-US: |
+                Bug fixes.
+              zh-Hans: |
+                修复问题。
+            """
         let url = folder.appending(path: "notes.yaml")
         try yaml.write(to: url, atomically: true, encoding: .utf8)
 
@@ -218,8 +220,8 @@ struct ReleaseNotesParserTests {
     @Test func parsesJSONFile() throws {
         let folder = try makeTempFolder()
         let json = """
-        {"version": "2.0.0", "locales": {"en-US": "New features.", "ja": "新機能。"}}
-        """
+            {"version": "2.0.0", "locales": {"en-US": "New features.", "ja": "新機能。"}}
+            """
         let url = folder.appending(path: "notes.json")
         try json.write(to: url, atomically: true, encoding: .utf8)
         let parsed = try parser.parse(url: url)
@@ -231,15 +233,15 @@ struct ReleaseNotesParserTests {
     @Test func parsesChangelogFile() throws {
         let folder = try makeTempFolder()
         let md = """
-        # Changelog
+            # Changelog
 
-        ## 1.2.0
-        - Added dark mode.
-        - Fixed crash on launch.
+            ## 1.2.0
+            - Added dark mode.
+            - Fixed crash on launch.
 
-        ## 1.1.0
-        - Initial release.
-        """
+            ## 1.1.0
+            - Initial release.
+            """
         let url = folder.appending(path: "CHANGELOG.md")
         try md.write(to: url, atomically: true, encoding: .utf8)
         let parsed = try parser.parse(url: url)
@@ -250,21 +252,21 @@ struct ReleaseNotesParserTests {
     @Test func changelogServesTheRequestedVersionAndStripsHeadingDates() throws {
         let folder = try makeTempFolder()
         let md = """
-        # Changelog
+            # Changelog
 
-        ## [Unreleased]
-        - Work in progress.
+            ## [Unreleased]
+            - Work in progress.
 
-        ## [2.4.0] - 2026-09-01
-        ### Added
-        - Widgets.
+            ## [2.4.0] - 2026-09-01
+            ### Added
+            - Widgets.
 
-        ## [2.3.0] - 2026-08-01
-        ### Fixed
-        - Sync crash.
+            ## [2.3.0] - 2026-08-01
+            ### Fixed
+            - Sync crash.
 
-        [2.4.0]: https://example.com/compare/v2.3.0...v2.4.0
-        """
+            [2.4.0]: https://example.com/compare/v2.3.0...v2.4.0
+            """
         let url = folder.appending(path: "CHANGELOG.md")
         try md.write(to: url, atomically: true, encoding: .utf8)
 
@@ -287,43 +289,43 @@ struct ReleaseNotesParserTests {
     @Test func parsesAppStoreMetadataFileExtractingMatchingVersion() throws {
         let folder = try makeTempFolder()
         let md = """
-        # App Store Metadata — Deutsch (de)
+            # App Store Metadata — Deutsch (de)
 
-        ## App Name
-        ```
-        ExampleTimer - Arbeitszeit
-        ```
+            ## App Name
+            ```
+            ExampleTimer - Arbeitszeit
+            ```
 
-        ## Beschreibung
-        ```
-        Eine fiktive Beispiel-App für Timer.
-        ```
+            ## Beschreibung
+            ```
+            Eine fiktive Beispiel-App für Timer.
+            ```
 
-        ## Was ist neu (What's New)
-        ```
-        Was ist neu in v2.12.3:
+            ## Was ist neu (What's New)
+            ```
+            Was ist neu in v2.12.3:
 
-        • Neue Schnellaktionen für heute
-        • Wochenübersicht für erfasste Tage
+            • Neue Schnellaktionen für heute
+            • Wochenübersicht für erfasste Tage
 
-        ---
+            ---
 
-        Was ist neu in v2.12.2:
+            Was ist neu in v2.12.2:
 
-        • Tägliche Erinnerungen klingeln nicht mehr am Wochenende
+            • Tägliche Erinnerungen klingeln nicht mehr am Wochenende
 
-        ---
+            ---
 
-        Was ist neu in v2.12.0:
+            Was ist neu in v2.12.0:
 
-        • Frisches Design mit neuem Monats-Ring
-        ```
+            • Frisches Design mit neuem Monats-Ring
+            ```
 
-        ## Keywords
-        ```
-        timer,beispiel,listen
-        ```
-        """
+            ## Keywords
+            ```
+            timer,beispiel,listen
+            ```
+            """
         let url = folder.appending(path: "de.md")
         try md.write(to: url, atomically: true, encoding: .utf8)
 
@@ -339,19 +341,19 @@ struct ReleaseNotesParserTests {
     @Test func metadataFileFallsBackToLatestWhenVersionMissing() throws {
         let folder = try makeTempFolder()
         let md = """
-        ## What's New
-        ```
-        What's New in v3.0.0:
+            ## What's New
+            ```
+            What's New in v3.0.0:
 
-        Latest content.
+            Latest content.
 
-        ---
+            ---
 
-        What's New in v2.9.0:
+            What's New in v2.9.0:
 
-        Older content.
-        ```
-        """
+            Older content.
+            ```
+            """
         let url = folder.appending(path: "en-US.md")
         try md.write(to: url, atomically: true, encoding: .utf8)
 
@@ -364,29 +366,29 @@ struct ReleaseNotesParserTests {
     @Test func metadataFileExtractsFirstReleaseWhatsNewWithoutVersionNumber() throws {
         let folder = try makeTempFolder()
         let md = """
-        # Demo Planner - App Store Metadata (English)
+            # Demo Planner - App Store Metadata (English)
 
-        ## 1. App Name
-        ```
-        Demo Planner - Daily Tasks
-        ```
+            ## 1. App Name
+            ```
+            Demo Planner - Daily Tasks
+            ```
 
-        ## 9. What's New (version release notes)
-        **First release: "First release"**
+            ## 9. What's New (version release notes)
+            **First release: "First release"**
 
-        ```
-        First release, welcome to Demo Planner
+            ```
+            First release, welcome to Demo Planner
 
-        • Simple task lists
-        • Optional reminders for upcoming tasks
-        • Sort completed and upcoming tasks
-        ```
+            • Simple task lists
+            • Optional reminders for upcoming tasks
+            • Sort completed and upcoming tasks
+            ```
 
-        ---
+            ---
 
-        ## 10. Marketing copy
-        Screenshot captions here.
-        """
+            ## 10. Marketing copy
+            Screenshot captions here.
+            """
         let url = folder.appending(path: "en.md")
         try md.write(to: url, atomically: true, encoding: .utf8)
 
@@ -405,54 +407,54 @@ struct ReleaseNotesParserTests {
     @Test func versionHistoryFileExtractsNestedAppStoreWhatsNewLocales() throws {
         let folder = try makeTempFolder()
         let md = """
-        # App Store Version History
+            # App Store Version History
 
-        ## 1.0.3 (Build 13)
+            ## 1.0.3 (Build 13)
 
-        ### Status
+            ### Status
 
-        Implemented locally. Ready for device QA before App Store submission.
+            Implemented locally. Ready for device QA before App Store submission.
 
-        ### App Store What's New
+            ### App Store What's New
 
-        #### English (en)
+            #### English (en)
 
-        Older English notes.
+            Older English notes.
 
-        ## 1.0.2 (Build 12)
+            ## 1.0.2 (Build 12)
 
-        ### Status
+            ### Status
 
-        Implemented locally. Ready for device QA before App Store submission.
+            Implemented locally. Ready for device QA before App Store submission.
 
-        ### Release Focus
+            ### Release Focus
 
-        Add a lightweight share/export path after processing.
+            Add a lightweight share/export path after processing.
 
-        ### App Store What's New
+            ### App Store What's New
 
-        #### Simplified Chinese (zh-Hans)
+            #### Simplified Chinese (zh-Hans)
 
-        新增分享/导出：裁切和增强完成后，可以通过系统分享面板把结果发送到文件、邮件、备忘录或其他 App。
+            新增分享/导出：裁切和增强完成后，可以通过系统分享面板把结果发送到文件、邮件、备忘录或其他 App。
 
-        #### English (en)
+            #### English (en)
 
-        Added Share / Export: after cropping and enhancement, send the result to Files, Mail, Notes, or other apps from the system share sheet.
+            Added Share / Export: after cropping and enhancement, send the result to Files, Mail, Notes, or other apps from the system share sheet.
 
-        #### Japanese (ja)
+            #### Japanese (ja)
 
-        共有 / 書き出しを追加しました。裁切と補正が完了した画像を、システム共有シートからファイル、メール、メモ、ほかのアプリへ送れます。
+            共有 / 書き出しを追加しました。裁切と補正が完了した画像を、システム共有シートからファイル、メール、メモ、ほかのアプリへ送れます。
 
-        ### Validation
+            ### Validation
 
-        - `git diff --check`
-        - `build_sim`
+            - `git diff --check`
+            - `build_sim`
 
-        ### Submission Notes
+            ### Submission Notes
 
-        - App version: `1.0.2`
-        - Build number: `12`
-        """
+            - App version: `1.0.2`
+            - Build number: `12`
+            """
         let url = folder.appending(path: "app-store-version-history.md")
         try md.write(to: url, atomically: true, encoding: .utf8)
 
@@ -473,16 +475,16 @@ struct ReleaseNotesParserTests {
     @Test func ambiguousMetadataRequiresReviewWhenNoRecommendedFieldExists() throws {
         let folder = try makeTempFolder()
         let md = """
-        ## App Name
-        ```
-        Example App
-        ```
+            ## App Name
+            ```
+            Example App
+            ```
 
-        ## Notes
-        ```
-        Internal notes that might be release notes.
-        ```
-        """
+            ## Notes
+            ```
+            Internal notes that might be release notes.
+            ```
+            """
         let url = folder.appending(path: "en.md")
         try md.write(to: url, atomically: true, encoding: .utf8)
 
@@ -498,15 +500,16 @@ struct ReleaseNotesParserTests {
         try "irrelevant".write(to: folder.appending(path: "Localization_en.txt"), atomically: true, encoding: .utf8)
         try "irrelevant".write(to: folder.appending(path: "Keywords_v1.9.txt"), atomically: true, encoding: .utf8)
         let dashSeparated = """
-        --- 简体中文 ---
-        v3.0.2 中文发布说明
-        - 新功能
+            --- 简体中文 ---
+            v3.0.2 中文发布说明
+            - 新功能
 
-        --- English（美国）---
-        v3.0.2 English release notes
-        - New feature
-        """
-        try dashSeparated.write(to: folder.appending(path: "ReleaseNotes_v3.0.2.txt"), atomically: true, encoding: .utf8)
+            --- English（美国）---
+            v3.0.2 English release notes
+            - New feature
+            """
+        try dashSeparated.write(
+            to: folder.appending(path: "ReleaseNotes_v3.0.2.txt"), atomically: true, encoding: .utf8)
         try "older".write(to: folder.appending(path: "ReleaseNotes_v3.0.1.txt"), atomically: true, encoding: .utf8)
         try "much older".write(to: folder.appending(path: "ReleaseNotes_v2.8.0.txt"), atomically: true, encoding: .utf8)
 
@@ -532,9 +535,9 @@ struct ReleaseNotesParserTests {
     @Test func plainReleaseNotesFileIsUsedAsIs() throws {
         let folder = try makeTempFolder()
         let md = """
-        • Improved import speed.
-        • Fixed a rare crash.
-        """
+            • Improved import speed.
+            • Fixed a rare crash.
+            """
         let url = folder.appending(path: "ja.md")
         try md.write(to: url, atomically: true, encoding: .utf8)
 
@@ -548,20 +551,20 @@ struct ReleaseNotesParserTests {
     @Test func dashSeparatedReleaseNotesRecognizesNativeHindiAndBahasaIndonesiaHeadings() throws {
         let folder = try makeTempFolder()
         let notes = """
-        ========== v3.1.4 Release Notes ==========
+            ========== v3.1.4 Release Notes ==========
 
-        --- Bahasa Indonesia ---
-        v3.1.4 Bahasa baru
-        - Menambahkan UI app dalam bahasa Thailand, Portugis Brasil, dan Hindi
+            --- Bahasa Indonesia ---
+            v3.1.4 Bahasa baru
+            - Menambahkan UI app dalam bahasa Thailand, Portugis Brasil, dan Hindi
 
-        --- हिन्दी ---
-        v3.1.4 नए भाषा अपडेट
-        - Thai, Brazilian Portuguese और Hindi app UI जोड़ा गया
+            --- हिन्दी ---
+            v3.1.4 नए भाषा अपडेट
+            - Thai, Brazilian Portuguese और Hindi app UI जोड़ा गया
 
-        --- English（美国）---
-        v3.1.4 — New localizations
-        - Added Thai, Brazilian Portuguese, and Hindi app UI
-        """
+            --- English（美国）---
+            v3.1.4 — New localizations
+            - Added Thai, Brazilian Portuguese, and Hindi app UI
+            """
         let url = folder.appending(path: "ReleaseNotes_v3.1.4.txt")
         try notes.write(to: url, atomically: true, encoding: .utf8)
 

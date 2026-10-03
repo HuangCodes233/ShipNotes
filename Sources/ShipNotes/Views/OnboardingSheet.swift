@@ -45,7 +45,8 @@ struct OnboardingSheet: View {
             step(
                 number: "1",
                 title: L("Generate an App Store Connect API Key"),
-                body: L("appstoreconnect.apple.com → Users and Access → Integrations → App Store Connect API → Generate.")
+                body: L(
+                    "appstoreconnect.apple.com → Users and Access → Integrations → App Store Connect API → Generate.")
             )
             step(
                 number: "2",

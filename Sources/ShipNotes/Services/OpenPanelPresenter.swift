@@ -21,10 +21,7 @@ enum OpenPanelPresenter {
     private static var presentationWindow: NSWindow? {
         let candidates = [NSApp.keyWindow, NSApp.mainWindow] + NSApp.windows.map(Optional.some)
         return candidates.compactMap { $0 }.first { window in
-            window.isVisible &&
-            !window.isMiniaturized &&
-            !(window is NSPanel) &&
-            window.canBecomeKey
+            window.isVisible && !window.isMiniaturized && !(window is NSPanel) && window.canBecomeKey
         }
     }
 }

@@ -37,8 +37,11 @@ struct BottomCommandBar: View {
             Button {
                 state.performSync()
             } label: {
-                Label(state.isSyncing ? L("Syncing") : L("Sync All"), systemImage: state.isSyncing ? "arrow.triangle.2.circlepath" : "icloud.and.arrow.up")
-                    .lineLimit(1)
+                Label(
+                    state.isSyncing ? L("Syncing") : L("Sync All"),
+                    systemImage: state.isSyncing ? "arrow.triangle.2.circlepath" : "icloud.and.arrow.up"
+                )
+                .lineLimit(1)
             }
             .primarySyncButton()
             .disabled(!state.canSyncAllReleaseNotes)
@@ -58,7 +61,7 @@ struct BottomCommandBar: View {
             L("%d ready", stats.readyCount),
             stats.needsReviewCount > 0 ? L("%d needs review", stats.needsReviewCount) : nil,
             stats.overLimitCount > 0 ? L("%d over limit", stats.overLimitCount) : nil,
-            stats.missingCount > 0 ? L("%d missing notes", stats.missingCount) : nil
+            stats.missingCount > 0 ? L("%d missing notes", stats.missingCount) : nil,
         ].compactMap { $0 }
 
         return Text(parts.joined(separator: " · "))

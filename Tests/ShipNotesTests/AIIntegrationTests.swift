@@ -1,5 +1,5 @@
-import Testing
 import Foundation
+import Testing
 @testable import ShipNotes
 
 @Suite("AI Integration")
@@ -58,7 +58,8 @@ struct AIIntegrationTests {
     }
 
     @Test func providerBadRequestPreservesItsActualReason() {
-        let rejected = Data(#"{"error":{"message":"The request was rejected because it was considered high risk"}}"#.utf8)
+        let rejected = Data(
+            #"{"error":{"message":"The request was rejected because it was considered high risk"}}"#.utf8)
         do {
             try AIRequestPolicy.validate(statusCode: 400, data: rejected)
             Issue.record("Expected request-rejected error")
@@ -125,8 +126,12 @@ struct AIIntegrationTests {
         mock.translateResult = "翻译后的中文文案。"
         let state = AppState(aiService: mock, defaults: makeTestDefaults())
         state.bootstrapWithMockData()
-        guard let firstWithText = state.localeNotes.first(where: { !$0.localText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }),
-              let target = state.localeNotes.first(where: { $0.locale != firstWithText.locale })?.locale else {
+        guard
+            let firstWithText = state.localeNotes.first(where: {
+                !$0.localText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }),
+            let target = state.localeNotes.first(where: { $0.locale != firstWithText.locale })?.locale
+        else {
             Issue.record("Mock setup needs at least two locale notes with text"); return
         }
         state.translateLocale(target, fromLocale: firstWithText.locale)
@@ -141,7 +146,8 @@ struct AIIntegrationTests {
         let state = AppState(aiKeychainStore: InMemoryAIKeychainStore(), defaults: makeTestDefaults())
         state.bootstrapWithMockData()
         guard let first = state.localeNotes.first,
-              let target = state.localeNotes.dropFirst().first?.locale else {
+            let target = state.localeNotes.dropFirst().first?.locale
+        else {
             Issue.record("Need at least 2 locale notes in preview state"); return
         }
         state.translateLocale(target, fromLocale: first.locale)
@@ -150,7 +156,8 @@ struct AIIntegrationTests {
 
     @Test func screenshotAIMatchingCanAddAdditionalScreenshotsToCoveredLocale() async {
         let vision = MockScreenshotVisionAIService()
-        let state = AppState(aiKeychainStore: InMemoryAIKeychainStore(), visionAIService: vision, defaults: makeTestDefaults())
+        let state = AppState(
+            aiKeychainStore: InMemoryAIKeychainStore(), visionAIService: vision, defaults: makeTestDefaults())
         state.localeNotes = [
             LocaleNote(
                 locale: "en-US",
@@ -199,12 +206,16 @@ struct AIIntegrationTests {
 
         #expect(state.screenshotCoverageGroups.first { $0.locale == "en-US" }?.count(for: .iPhone69) == 2)
         #expect(state.screenshotCoverageGroups.first { $0.isUnassigned } == nil)
-        #expect(state.screenshotUploadSummary == expectedLocalized("AI matched %d screenshot(s). Review the locale coverage before previewing upload.", 1))
+        #expect(
+            state.screenshotUploadSummary
+                == expectedLocalized(
+                    "AI matched %d screenshot(s). Review the locale coverage before previewing upload.", 1))
     }
 
     @Test func screenshotAIMatchingStillFillsMissingRequiredSlots() async {
         let vision = MockScreenshotVisionAIService()
-        let state = AppState(aiKeychainStore: InMemoryAIKeychainStore(), visionAIService: vision, defaults: makeTestDefaults())
+        let state = AppState(
+            aiKeychainStore: InMemoryAIKeychainStore(), visionAIService: vision, defaults: makeTestDefaults())
         state.localeNotes = [
             LocaleNote(
                 locale: "en-US",
@@ -244,12 +255,16 @@ struct AIIntegrationTests {
 
         #expect(state.screenshotCoverageGroups.first { $0.locale == "en-US" }?.count(for: .iPhone69) == 1)
         #expect(state.screenshotCoverageGroups.first { $0.isUnassigned } == nil)
-        #expect(state.screenshotUploadSummary == expectedLocalized("AI matched %d screenshot(s). Review the locale coverage before previewing upload.", 1))
+        #expect(
+            state.screenshotUploadSummary
+                == expectedLocalized(
+                    "AI matched %d screenshot(s). Review the locale coverage before previewing upload.", 1))
     }
 
     @Test func screenshotAIMatchingAppliesMultipleVisibleLanguageAssignmentsWithoutLocaleFolders() async {
         let vision = MockScreenshotVisionAIService()
-        let state = AppState(aiKeychainStore: InMemoryAIKeychainStore(), visionAIService: vision, defaults: makeTestDefaults())
+        let state = AppState(
+            aiKeychainStore: InMemoryAIKeychainStore(), visionAIService: vision, defaults: makeTestDefaults())
         state.localeNotes = [
             LocaleNote(
                 locale: "zh-Hans",
@@ -281,7 +296,8 @@ struct AIIntegrationTests {
             skippedCount: 0
         )
         vision.assignments = assets.map {
-            ScreenshotLocaleAssignment(assetID: $0.id, locale: "zh-Hans", confidence: 0.95, reason: "Simplified Chinese UI text")
+            ScreenshotLocaleAssignment(
+                assetID: $0.id, locale: "zh-Hans", confidence: 0.95, reason: "Simplified Chinese UI text")
         }
 
         state.askAIToClassifyScreenshots()
@@ -291,12 +307,16 @@ struct AIIntegrationTests {
 
         #expect(state.screenshotCoverageGroups.first { $0.locale == "zh-Hans" }?.count(for: .iPhone65) == 5)
         #expect(state.screenshotCoverageGroups.first { $0.isUnassigned } == nil)
-        #expect(state.screenshotUploadSummary == expectedLocalized("AI matched %d screenshot(s). Review the locale coverage before previewing upload.", 5))
+        #expect(
+            state.screenshotUploadSummary
+                == expectedLocalized(
+                    "AI matched %d screenshot(s). Review the locale coverage before previewing upload.", 5))
     }
 
     @Test func screenshotAIMatchingCanReassignSameLanguageCandidateToMissingLocale() async {
         let vision = MockScreenshotVisionAIService()
-        let state = AppState(aiKeychainStore: InMemoryAIKeychainStore(), visionAIService: vision, defaults: makeTestDefaults())
+        let state = AppState(
+            aiKeychainStore: InMemoryAIKeychainStore(), visionAIService: vision, defaults: makeTestDefaults())
         state.localeNotes = ["zh-Hans", "zh-Hant"].map { locale in
             LocaleNote(
                 locale: locale,
@@ -328,7 +348,8 @@ struct AIIntegrationTests {
         #expect(state.canClassifyScreenshotsWithAI == true)
 
         vision.assignments = [
-            ScreenshotLocaleAssignment(assetID: simplifiedCandidate.id, locale: "zh-Hant", confidence: 0.92, reason: "Traditional Chinese UI")
+            ScreenshotLocaleAssignment(
+                assetID: simplifiedCandidate.id, locale: "zh-Hant", confidence: 0.92, reason: "Traditional Chinese UI")
         ]
         state.askAIToClassifyScreenshots()
         for _ in 0..<50 where state.screenshotUploadSummary == nil {
@@ -336,7 +357,10 @@ struct AIIntegrationTests {
         }
 
         #expect(state.screenshotCoverageGroups.first { $0.locale == "zh-Hant" }?.count(for: .iPhone69) == 1)
-        #expect(state.screenshotUploadSummary == expectedLocalized("AI matched %d screenshot(s). Review the locale coverage before previewing upload.", 1))
+        #expect(
+            state.screenshotUploadSummary
+                == expectedLocalized(
+                    "AI matched %d screenshot(s). Review the locale coverage before previewing upload.", 1))
     }
 
     @Test func aiRequestPolicyUsesLongTimeoutAndRetriesOnlyConnectionFailures() {

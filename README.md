@@ -1,97 +1,120 @@
 # ShipNotes
 
-Preview and sync localized App Store release notes, store copy, and screenshots from local files, in a native macOS app.
+[English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
-**Early developer preview.** ShipNotes is intended for indie developers and small teams that already keep their release material in Markdown, YAML, or project folders. Start with the built-in sample account; live publishing and distribution still need further verification.
+[![CI](https://github.com/HuangCodes233/ShipNotes/actions/workflows/ci.yml/badge.svg)](https://github.com/HuangCodes233/ShipNotes/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## What it does
+A native macOS app for preparing and syncing localized App Store release notes, store copy, and screenshots from local files.
 
-- Import localized release notes from Markdown folders, YAML, JSON, and changelogs.
-- Map local language codes to App Store Connect locales, inspect diffs, and validate drafts before syncing.
-- Edit and sync store copy, including description, keywords, promotional text, subtitle, and privacy policy URL.
-- Scan screenshot folders, check locale/device coverage, and preview uploads or replacements.
-- Optionally use your own OpenAI or Anthropic credentials for parsing, translation, and screenshot language matching.
-- Explore Apple Ads reports and campaign tools in a separate workspace with separate credentials.
+**Status: early developer preview.** Build from source and start with the demo account. Signed binary distribution and live service workflows still need verification.
 
-The interface supports English, Simplified Chinese, and Japanese. Liquid Glass is used on macOS 26 and later, with material fallbacks on older systems.
+## Features
+
+- **Release notes:** import Markdown, YAML, JSON, and changelogs; map locales, compare changes, and validate drafts before syncing.
+- **Store copy:** edit descriptions, keywords, subtitles, promotional text, and store URLs across locales.
+- **Screenshots:** scan folders, check device sizes and locale coverage, and preview uploads or replacements.
+- **Optional AI:** use your own OpenAI-compatible or Anthropic credentials for parsing, translation, copy optimization, and screenshot language matching.
+- **Apple Ads:** view reports and manage campaigns and keywords with separate credentials.
+- **Native interface:** English, Simplified Chinese, and Japanese; Liquid Glass on macOS 26 and later, with material fallbacks on older systems.
 
 ## Requirements
 
-- **Runtime:** macOS 14 or later is the deployment target. Older supported macOS releases still need runtime verification.
-- **Build:** Xcode 26 or later with the macOS 26 or newer SDK, and Swift 6 support. Select the full Xcode installation with `xcode-select` if your command-line tools point elsewhere.
-- **Sample mode:** no Apple or AI credentials required on a fresh installation.
-- **Live mode:** your own App Store Connect API credentials with access to the app and the operations you intend to perform. AI and Apple Ads are optional and configured separately.
+| Item | Requirement |
+| --- | --- |
+| Deployment target | macOS 14 or later; runtime behavior on macOS 14/15 still needs verification |
+| Build tools | Xcode 26 or later, the macOS 26 or newer SDK, and Swift 6 support |
+| Demo account | No Apple or AI credentials required on a fresh installation |
+| Live App Store access | Your own App Store Connect API credentials with the necessary app permissions |
+| Optional services | Separate AI API keys and Apple Ads credentials |
+
+Use the full Xcode installation. The package has no third-party package dependencies.
 
 ## Quick start
 
-Clone the repository and build a local, ad-hoc-signed app:
+Build a local app with ad-hoc signing:
 
 ```sh
 git clone https://github.com/HuangCodes233/ShipNotes.git
 cd ShipNotes
-CONFIG=debug SIGN_IDENTITY=- scripts/build-app.sh
+CONFIG=debug SIGN_IDENTITY=- ./scripts/build-app.sh
 open dist/ShipNotes.app
 ```
 
-The first launch offers **Explore the demo first**. Before entering any credentials:
+On the first launch, choose **Explore the demo first**:
 
-1. Choose a sample app and an editable version in the sidebar.
-2. In **Release Notes**, use **Import Folder** with `Examples/release-notes/1.4.0/`, or import `Examples/release-notes/1.5.0.yaml` as a file.
-3. Select a locale, edit its draft, inspect the diff, and run **Dry Run**.
-4. Explore **Store Copy**, **Screenshots**, and the sample **Ads** workspace.
+1. Select a sample app and an editable version.
+2. Open **Release Notes** and import `Examples/release-notes/1.4.0/` as a folder, or `Examples/release-notes/1.5.0.yaml` as a file.
+3. Select a locale, edit the draft, inspect the diff, and run **Dry Run**.
+4. Explore the store-copy, screenshot, and Apple Ads workspaces.
 
-Existing saved credentials are restored on launch and may reconnect to live services. Check the connection indicator before syncing. Sample mode is a first-run experience, not an offline override for an already configured installation.
+A configured installation can restore saved credentials and reconnect to live services on launch. Check the connection indicator and selected app/version before syncing.
 
-To connect a real account, open Settings and enter your App Store Connect issuer ID, key ID, and `.p8` private key. Confirm the selected app, version, locales, and proposed changes before using sync, screenshot replacement, or review submission. See [credentials and data flow](docs/privacy-and-data.md) for what is stored locally and sent to each service.
+## Release-note files
+
+Use one Markdown file per locale, such as `1.4.0/en-US.md`, or a YAML/JSON document containing a version and locale map. A YAML example:
+
+```yaml
+version: 1.5.0
+locales:
+  en-US: |
+    • Added folder watching.
+  zh-Hans: |
+    • 新增文件夹监听。
+  ja: |
+    • フォルダ監視を追加しました。
+```
+
+The [example files](Examples/release-notes/) include multilingual Markdown and YAML fixtures. Changelogs and combined metadata documents are also supported; ambiguous imports offer a preview for review.
+
+## Connecting services and privacy
+
+In **Settings → Account**, enter your App Store Connect issuer ID, key ID, and `.p8` private key. Configure AI and Apple Ads separately when needed. Review the destination app, version, locales, and proposed changes before any live write.
+
+Credentials are stored in the macOS Keychain. Preferences, paths, and sync history use local storage. AI operations send input text or screenshot thumbnails to the configured provider; custom endpoints receive that profile's requests and credentials. See [credentials and data flow](docs/privacy-and-data.md) before using private material.
 
 ## Development
 
-Open `Package.swift` in Xcode, or use the bundled build/run entrypoint:
+Open `Package.swift` in Xcode or use SwiftPM. Run formatting checks, functional tests, and whitespace checks together:
 
 ```sh
-./script/build_and_run.sh
-./script/build_and_run.sh --verify
+./scripts/check.sh
 ```
 
-The script builds a proper `.app` bundle, replaces the existing ShipNotes process, and launches the new app. It defaults to a debug build with ad-hoc signing; `CONFIG` and `SIGN_IDENTITY` can override those defaults. `--logs`, `--telemetry`, and `--debug` provide optional diagnostics. The Codex Run action uses this same script.
-
-Run the functional tests:
+Build and launch the app during development:
 
 ```sh
-swift test
+./scripts/run-app.sh
 ```
 
-The test suite uses test doubles and isolated settings. Optional performance probes are skipped by default; reproduction commands and measurement limits are in the [performance audit](docs/performance-audit.md).
+The run script defaults to debug/ad-hoc signing and stops an existing ShipNotes process before launching. It also supports `--verify`, `--debug`, `--logs`, and `--telemetry`. The Codex Run action uses the same entry point.
 
-CI runs tests with Xcode 26.3 on `macos-15` and the bundled Xcode on the `xcode-27` preview image, logging the actual OS, compiler, and SDK. A separate job scans Git history for secrets with Gitleaks. Workflow configuration alone is not evidence of a successful run; check the [Actions results](https://github.com/HuangCodes233/ShipNotes/actions) for the relevant commit.
+CI tests Xcode 26.3 and Xcode 27, checks Swift formatting on Xcode 27, and scans Git history with Gitleaks. See the [development guide](docs/development.md) for source organization and checks, and [performance probes](docs/performance.md) for optional benchmarks.
 
-## Packaging and current limits
+## Packaging and limitations
 
-`scripts/build-app.sh` creates `dist/ShipNotes.app` with an `Info.plist`, compiled icon, SwiftPM resources, and code signature. Build overrides include:
+Build a release-configured local bundle:
 
 ```sh
-CONFIG=release VERSION=0.1.0 BUILD=1 SIGN_IDENTITY=- scripts/build-app.sh
+CONFIG=release VERSION=0.1.0 BUILD=1 SIGN_IDENTITY=- ./scripts/build-app.sh
 ```
 
-The packaging script also supports Developer ID signing and optional notarization. That support does not establish that a release has been notarized or tested on another Mac. This preview does not promise a ready-to-install signed release.
+The output is `dist/ShipNotes.app`. The packaging script supports Developer ID signing and optional notarization; ad-hoc signing is for local development.
 
-Other verification gaps:
+Current verification gaps:
 
-- Recent App Store Connect, Apple Ads, and AI fixes were tested with doubles, not live accounts.
-- Mac App Store sandbox entitlements and persistent security-scoped folder access are not implemented.
-- macOS 14/15 runtime behavior and a second-Mac installation still need verification.
-- The SwiftPM test target is a functional suite, not an automated UI suite.
+- Live App Store Connect, Apple Ads, and AI operations are covered by doubles rather than end-to-end service verification.
+- Developer ID distribution, notarization, and installation on another Mac remain unverified.
+- Mac App Store sandbox entitlements and security-scoped bookmarks are not implemented.
+- Older macOS runtime behavior and automated UI coverage remain follow-up work.
 
-See [development status](docs/development-status.md) for follow-ups and [the product plan](ShipNotes_PLAN.md) for proposed directions; planned capabilities are not a list of delivered features.
+See [development status](docs/development-status.md) for the maintained follow-up list.
 
-## Feedback and contributions
+## Contributing and security
 
-Report reproducible problems using the [bug report template](https://github.com/HuangCodes233/ShipNotes/issues/new?template=bug_report.yml). Include the commit, macOS/Xcode version, and a sanitized sample. Discuss substantial features before opening a large pull request. This is a personally maintained project, with no guaranteed response time.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. For bugs, include a minimal reproduction, commit, macOS/Xcode versions, and sanitized sample data. Discuss substantial changes in an issue first.
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before contributing and [SECURITY.md](SECURITY.md) for private security reporting. Never post API keys, private keys, tokens, or customer data in an issue.
+Report vulnerabilities privately using [SECURITY.md](SECURITY.md). Keep credentials, customer data, and personal paths out of public issues, screenshots, and logs.
 
 ## License
 
-Source code, scripts, and documentation are available under the [MIT License](LICENSE), which permits commercial reuse and redistribution subject to its notice requirements. The AI-generated app icon and its exports are also made available under MIT to the extent of the maintainer's rights; see [asset licensing](docs/asset-licensing.md) for provenance.
-
-The ShipNotes name and icon are not a grant of permission to present a derivative as an official ShipNotes release.
+Code, scripts, and documentation are licensed under [MIT](LICENSE). The AI-generated icon is also made available under MIT to the extent of the maintainer's rights; see [asset licensing](docs/asset-licensing.md). The ShipNotes name and icon do not grant permission to present a derivative as an official release.

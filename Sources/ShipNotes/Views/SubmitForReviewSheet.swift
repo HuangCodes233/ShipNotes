@@ -51,10 +51,14 @@ struct SubmitForReviewSheet: View {
     @ViewBuilder
     private var content: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(L("Submitting will send this version to Apple App Review. ShipNotes will run the standard 3-step flow: create submission → attach version → submit."))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Text(
+                L(
+                    "Submitting will send this version to Apple App Review. ShipNotes will run the standard 3-step flow: create submission → attach version → submit."
+                )
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
 
             summary
 
@@ -107,21 +111,29 @@ struct SubmitForReviewSheet: View {
                     .font(.subheadline.bold())
             }
 
-            Text(L("Apple's API returns generic 409 error when required metadata or build verification is missing. Check the following items:"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Text(
+                L(
+                    "Apple's API returns generic 409 error when required metadata or build verification is missing. Check the following items:"
+                )
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 6) {
                 checklistBullet(
                     icon: "lock.shield.fill",
                     title: L("Export Compliance"),
-                    desc: L("Check if the attached build requires encryption compliance confirmation (yellow badge in TestFlight/ASC).")
+                    desc: L(
+                        "Check if the attached build requires encryption compliance confirmation (yellow badge in TestFlight/ASC)."
+                    )
                 )
                 checklistBullet(
                     icon: "photo.stack.fill",
                     title: L("Required Screenshots"),
-                    desc: L("Ensure mandatory 6.9\"/6.5\" iPhone or 13\" iPad screenshots are provided for all target locales.")
+                    desc: L(
+                        "Ensure mandatory 6.9\"/6.5\" iPhone or 13\" iPad screenshots are provided for all target locales."
+                    )
                 )
                 checklistBullet(
                     icon: "hand.raised.fill",
@@ -131,12 +143,15 @@ struct SubmitForReviewSheet: View {
                 checklistBullet(
                     icon: "person.crop.circle.badge.checkmark",
                     title: L("Age Rating & Review Info"),
-                    desc: L("Ensure age rating questionnaire, contact info (phone/email), and demo login credentials are filled.")
+                    desc: L(
+                        "Ensure age rating questionnaire, contact info (phone/email), and demo login credentials are filled."
+                    )
                 )
                 checklistBullet(
                     icon: "link",
                     title: L("Privacy Policy URL"),
-                    desc: L("Ensure a valid Privacy Policy URL is entered if your app requires account login or purchases.")
+                    desc: L(
+                        "Ensure a valid Privacy Policy URL is entered if your app requires account login or purchases.")
                 )
             }
             .padding(.vertical, 4)

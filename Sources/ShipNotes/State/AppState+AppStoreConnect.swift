@@ -32,7 +32,8 @@ extension AppState {
 
         // Default platform: same as the currently-selected version's platform,
         // or the first existing version's platform, or IOS as a last resort.
-        let resolvedPlatform: String = platform
+        let resolvedPlatform: String =
+            platform
             ?? selectedVersion.flatMap { Self.apiPlatformValue(from: $0.platform) }
             ?? (versionsByApp[appId]?.first.flatMap { Self.apiPlatformValue(from: $0.platform) })
             ?? "IOS"
@@ -52,7 +53,8 @@ extension AppState {
             )
             let versions = try await service.fetchVersions(appId: appId)
             versionsByApp[appId] = versions
-            let chosenId = versions.first { $0.id == newVersion.id }?.id
+            let chosenId =
+                versions.first { $0.id == newVersion.id }?.id
                 ?? versions.first { $0.versionString == newVersion.versionString }?.id
                 ?? newVersion.id
             // Sample data still uses the mock note loader so first-run drafts
@@ -86,12 +88,15 @@ extension AppState {
     @discardableResult
     func submitSelectedVersionForReview(releaseType: ReleaseType?) async -> Bool {
         guard let service = appStoreService,
-              let appId = selectedAppId,
-              let version = selectedVersion else {
+            let appId = selectedAppId,
+            let version = selectedVersion
+        else {
             // Mock mode (or nothing selected): silently doing nothing would
             // look like a broken button, so surface why the no-op happened.
             if selectedVersion != nil {
-                setError(L("Submitting for review requires a live App Store Connect connection. Mock data is read-only."), category: .validation)
+                setError(
+                    L("Submitting for review requires a live App Store Connect connection. Mock data is read-only."),
+                    category: .validation)
             }
             return false
         }
@@ -104,7 +109,8 @@ extension AppState {
         // Step 0: Auto-sync any locale that's edited locally but not yet
         // pushed to App Store Connect. Without this, "edit then directly hit
         // Submit" would send the OLD release notes to Apple - easy footgun.
-        let pendingLocales = localeNotes
+        let pendingLocales =
+            localeNotes
             .filter { $0.status == .ready || $0.status == .needsReview }
             .map(\.locale)
         if !pendingLocales.isEmpty {
@@ -113,7 +119,9 @@ extension AppState {
             guard ok else {
                 if lastError == nil {
                     setError(
-                        L("Some release notes could not be synced to App Store Connect. Fix the failed locales, then submit again."),
+                        L(
+                            "Some release notes could not be synced to App Store Connect. Fix the failed locales, then submit again."
+                        ),
                         category: .appStoreConnect,
                         isRetryable: true
                     )
@@ -125,7 +133,8 @@ extension AppState {
         // Step 0b: Same for store copy (description/keywords/etc). It syncs
         // separately from release notes, so an edited-but-unsynced store copy
         // would otherwise be submitted with its old values.
-        let pendingStoreCopy = storeCopyLocales
+        let pendingStoreCopy =
+            storeCopyLocales
             .filter { $0.status == .ready || $0.status == .needsReview }
             .map(\.locale)
         if !pendingStoreCopy.isEmpty {
@@ -133,7 +142,9 @@ extension AppState {
             guard ok else {
                 if lastError == nil {
                     setError(
-                        L("Some store copy could not be synced to App Store Connect. Fix the failed locales, then submit again."),
+                        L(
+                            "Some store copy could not be synced to App Store Connect. Fix the failed locales, then submit again."
+                        ),
                         category: .appStoreConnect,
                         isRetryable: true
                     )
@@ -169,7 +180,7 @@ extension AppState {
         }
     }
 
-    internal func recoverSubmittedVersionState(
+    func recoverSubmittedVersionState(
         service: AppStoreConnectServicing,
         appId: String,
         versionId: String
@@ -185,8 +196,9 @@ extension AppState {
 
     func loadBuildsForSelectedVersion() async {
         guard let service = appStoreService,
-              let appId = selectedAppId,
-              let version = selectedVersion else { return }
+            let appId = selectedAppId,
+            let version = selectedVersion
+        else { return }
         let versionId = version.id
 
         isLoadingBuilds = true
@@ -197,12 +209,16 @@ extension AppState {
         // in TaskGroup::offer when such a group tore down mid-flight (see
         // mapConcurrently). Each task captures its own error; results are
         // applied only when both finish.
-        let buildsTask = Task { await captureAsyncResult {
-            try await service.fetchBuilds(appId: appId, marketingVersion: version.versionString)
-        } }
-        let attachedTask = Task { await captureAsyncResult {
-            try await service.fetchAttachedBuild(versionId: versionId)
-        } }
+        let buildsTask = Task {
+            await captureAsyncResult {
+                try await service.fetchBuilds(appId: appId, marketingVersion: version.versionString)
+            }
+        }
+        let attachedTask = Task {
+            await captureAsyncResult {
+                try await service.fetchAttachedBuild(versionId: versionId)
+            }
+        }
         let (builds, attached) = (await buildsTask.value, await attachedTask.value)
 
         switch (builds, attached) {
@@ -240,12 +256,16 @@ extension AppState {
 
         // Unstructured tasks instead of `async let` — same TaskGroup::offer
         // reason as loadBuildsForSelectedVersion above.
-        let buildsTask = Task { await captureAsyncResult {
-            try await service.fetchAllBuilds(appId: appId)
-        } }
-        let versionsTask = Task { await captureAsyncResult {
-            try await service.fetchVersions(appId: appId)
-        } }
+        let buildsTask = Task {
+            await captureAsyncResult {
+                try await service.fetchAllBuilds(appId: appId)
+            }
+        }
+        let versionsTask = Task {
+            await captureAsyncResult {
+                try await service.fetchVersions(appId: appId)
+            }
+        }
         let (builds, versions) = (await buildsTask.value, await versionsTask.value)
 
         guard versionCreationContextRequestID == requestID, selectedAppId == appId else { return }
@@ -288,7 +308,7 @@ extension AppState {
         }
     }
 
-    internal func refreshAttachedBuild(versionId: String, surfaceErrors: Bool) async {
+    func refreshAttachedBuild(versionId: String, surfaceErrors: Bool) async {
         guard let service = appStoreService else { return }
         isLoadingBuilds = true
         defer { isLoadingBuilds = false }
@@ -346,7 +366,7 @@ extension AppState {
         }
     }
 
-    internal func existingLocalizationId(for locale: String) -> String? {
+    func existingLocalizationId(for locale: String) -> String? {
         localeNotes.first(where: { $0.locale == locale })?.remoteLocalizationId
             ?? storeCopyLocales.first(where: { $0.locale == locale })?.remoteLocalizationId
             ?? remoteNotesByLocale[locale]?.localizationId
@@ -358,7 +378,7 @@ extension AppState {
     /// consulted — and newly learned IDs written back — only while `versionId`
     /// is still selected. Long operations that outlive a version switch pass the
     /// ID they captured up front via `knownLocalizationId`.
-    internal func ensureLocalizationId(
+    func ensureLocalizationId(
         for locale: String,
         versionId: String,
         service: AppStoreConnectServicing,
@@ -373,7 +393,8 @@ extension AppState {
             return id
         }
 
-        let noteText = text.isEmpty && isSelectedVersion
+        let noteText =
+            text.isEmpty && isSelectedVersion
             ? (localeNotes.first { $0.locale == locale }?.localText ?? "")
             : text
         let created: RemoteLocaleNote
@@ -385,11 +406,12 @@ extension AppState {
             )
         } catch {
             guard isDuplicateLocalizationError(error),
-                  let existing = try await refreshExistingLocalization(
+                let existing = try await refreshExistingLocalization(
                     locale: locale,
                     versionId: versionId,
                     service: service
-                  ) else {
+                )
+            else {
                 throw error
             }
             return existing.localizationId
@@ -401,9 +423,10 @@ extension AppState {
         return created.localizationId
     }
 
-    internal func isDuplicateLocalizationError(_ error: Error) -> Bool {
+    func isDuplicateLocalizationError(_ error: Error) -> Bool {
         guard case AppStoreConnectClientError.requestFailed(let statusCode, let message) = error,
-              statusCode == 409 else {
+            statusCode == 409
+        else {
             return false
         }
         let normalized = message.lowercased()
@@ -412,7 +435,7 @@ extension AppState {
             || normalized.contains("attribute.invalid.duplicate")
     }
 
-    internal func refreshExistingLocalization(
+    func refreshExistingLocalization(
         locale: String,
         versionId: String,
         service: AppStoreConnectServicing
@@ -424,7 +447,7 @@ extension AppState {
         return remoteNotes.first { $0.locale.caseInsensitiveCompare(locale) == .orderedSame }
     }
 
-    internal func applyRemoteLocalizationIdentity(_ remote: RemoteLocaleNote) {
+    func applyRemoteLocalizationIdentity(_ remote: RemoteLocaleNote) {
         let locale = remote.locale
         var merged = remote
         if let existing = remoteNotesByLocale[locale] {
@@ -438,7 +461,7 @@ extension AppState {
         }
     }
 
-    internal func configureLiveClient(_ credentials: AppStoreConnectCredentials) {
+    func configureLiveClient(_ credentials: AppStoreConnectCredentials) {
         let credentials = (try? credentials.validated()) ?? credentials.trimmed
         appStoreService = AppStoreConnectClient(credentials: credentials)
         credentialSummary = credentials.summary
@@ -446,7 +469,7 @@ extension AppState {
         accounts = [account(from: credentials)]
     }
 
-    internal func account(from credentials: AppStoreConnectCredentials) -> Account {
+    func account(from credentials: AppStoreConnectCredentials) -> Account {
         Account(
             id: "app-store-connect-\(credentials.keyId)",
             name: credentials.accountName,
@@ -458,7 +481,7 @@ extension AppState {
         )
     }
 
-    internal func selectMockApp(_ id: String) {
+    func selectMockApp(_ id: String) {
         if selectedAppId != id {
             resetScreenshotWorkspace()
         }
@@ -472,7 +495,7 @@ extension AppState {
         }
     }
 
-    internal func selectMockVersion(_ id: String) {
+    func selectMockVersion(_ id: String) {
         selectedVersionId = id
         pendingScreenshotReplacement = nil
         resetRemoteScreenshotCounts()
@@ -482,7 +505,7 @@ extension AppState {
         loadMockNotesForCurrentVersion()
     }
 
-    internal func selectLiveApp(_ id: String) async {
+    func selectLiveApp(_ id: String) async {
         guard let service = appStoreService else { return }
         let requestedAppId = id
         if selectedAppId != id {
@@ -507,7 +530,7 @@ extension AppState {
         }
     }
 
-    internal func refreshLiveVersionsForSelectedApp() async {
+    func refreshLiveVersionsForSelectedApp() async {
         guard let service = appStoreService, let appId = selectedAppId else { return }
         let requestedAppId = appId
         let previousVersionId = selectedVersionId
@@ -520,7 +543,8 @@ extension AppState {
             guard selectedAppId == requestedAppId else { return }
             versionsByApp[appId] = versions
             let previous = versions.first { $0.id == previousVersionId }
-            let preferred = previous?.canEditMetadata == true
+            let preferred =
+                previous?.canEditMetadata == true
                 ? previous
                 : (versions.first { $0.canEditMetadata } ?? previous ?? versions.first)
 
@@ -539,7 +563,7 @@ extension AppState {
         }
     }
 
-    internal func selectLiveVersion(_ id: String, resetSource: Bool) async {
+    func selectLiveVersion(_ id: String, resetSource: Bool) async {
         guard let service = appStoreService else { return }
         let requestedAppId = selectedAppId
         let requestedVersionId = id
@@ -592,7 +616,7 @@ extension AppState {
         }
     }
 
-    internal func bootstrapLiveClientFromKeychainInBackground() async {
+    func bootstrapLiveClientFromKeychainInBackground() async {
         let store = credentialStore
         let loadResult = await Task.detached(priority: .userInitiated) { () -> CredentialLoadResult in
             do {

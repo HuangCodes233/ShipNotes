@@ -112,7 +112,8 @@ struct AppleAdsKeychainStore: AppleAdsCredentialStoring, Sendable {
             throw AppleAdsCredentialError.keychainReadFailed(status)
         }
         guard let data = item as? Data,
-              let credentials = try? decoder.decode(AppleAdsCredentials.self, from: data) else {
+            let credentials = try? decoder.decode(AppleAdsCredentials.self, from: data)
+        else {
             throw AppleAdsCredentialError.invalidStoredData
         }
         return credentials
@@ -123,7 +124,7 @@ struct AppleAdsKeychainStore: AppleAdsCredentialStoring, Sendable {
         var query = baseQuery
         let attributes: [String: Any] = [
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
 
         let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
@@ -150,7 +151,7 @@ struct AppleAdsKeychainStore: AppleAdsCredentialStoring, Sendable {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
         ]
     }
 }

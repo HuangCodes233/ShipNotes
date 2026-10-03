@@ -28,47 +28,51 @@ struct ContentView: View {
         @Bindable var state = state
 
         splitLayout
-        .preferredColorScheme((AppearanceOption(rawValue: appearanceRaw) ?? .system).colorScheme)
-        .toolbar { mainToolbar }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            TopBannerStack()
-        }
-        .sheet(isPresented: $showHistory) {
-            SyncHistoryView()
-                .environment(state)
-        }
-        .sheet(isPresented: Binding(
-            get: { state.pendingImport != nil },
-            set: { if !$0 { state.cancelPendingImport() } }
-        )) {
-            ImportReviewSheet()
-                .environment(state)
-        }
-        .sheet(isPresented: $showOnboarding) {
-            OnboardingSheet {
-                hasSeenOnboarding = true
+            .preferredColorScheme((AppearanceOption(rawValue: appearanceRaw) ?? .system).colorScheme)
+            .toolbar { mainToolbar }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                TopBannerStack()
             }
-        }
-        .sheet(isPresented: Binding(
-            get: { state.showPromoteVersionSheet },
-            set: { state.showPromoteVersionSheet = $0 }
-        )) {
-            PromoteVersionSheet()
-                .environment(state)
-        }
-        .onChange(of: state.dryRunCompletionTick) { _, _ in
-            // Dry runs are silent otherwise — pop the sheet so the user
-            // can see the diff that was just computed.
-            showHistory = true
-        }
-        .task {
-            // First-launch: show the onboarding sheet exactly once if the
-            // user hasn't already connected an App Store Connect account.
-            if !hasSeenOnboarding && state.isUsingMockData {
-                try? await Task.sleep(for: .nanoseconds(250_000_000))
-                showOnboarding = true
+            .sheet(isPresented: $showHistory) {
+                SyncHistoryView()
+                    .environment(state)
             }
-        }
+            .sheet(
+                isPresented: Binding(
+                    get: { state.pendingImport != nil },
+                    set: { if !$0 { state.cancelPendingImport() } }
+                )
+            ) {
+                ImportReviewSheet()
+                    .environment(state)
+            }
+            .sheet(isPresented: $showOnboarding) {
+                OnboardingSheet {
+                    hasSeenOnboarding = true
+                }
+            }
+            .sheet(
+                isPresented: Binding(
+                    get: { state.showPromoteVersionSheet },
+                    set: { state.showPromoteVersionSheet = $0 }
+                )
+            ) {
+                PromoteVersionSheet()
+                    .environment(state)
+            }
+            .onChange(of: state.dryRunCompletionTick) { _, _ in
+                // Dry runs are silent otherwise — pop the sheet so the user
+                // can see the diff that was just computed.
+                showHistory = true
+            }
+            .task {
+                // First-launch: show the onboarding sheet exactly once if the
+                // user hasn't already connected an App Store Connect account.
+                if !hasSeenOnboarding && state.isUsingMockData {
+                    try? await Task.sleep(for: .nanoseconds(250_000_000))
+                    showOnboarding = true
+                }
+            }
     }
 
     private var splitLayout: some View {
@@ -184,10 +188,13 @@ struct ContentView: View {
         }
 
         ToolbarItem(placement: .principal) {
-            Picker("", selection: Binding(
-                get: { state.workspaceMode },
-                set: { state.workspaceMode = $0 }
-            )) {
+            Picker(
+                "",
+                selection: Binding(
+                    get: { state.workspaceMode },
+                    set: { state.workspaceMode = $0 }
+                )
+            ) {
                 ForEach(WorkspaceMode.allCases) { mode in
                     Text(mode.title).tag(mode)
                 }
@@ -212,7 +219,9 @@ struct ContentView: View {
                     Button {
                         state.toggleWatching()
                     } label: {
-                        Label(state.watching ? L("Watching") : L("Watch Folder"), systemImage: state.watching ? "eye.fill" : "eye")
+                        Label(
+                            state.watching ? L("Watching") : L("Watch Folder"),
+                            systemImage: state.watching ? "eye.fill" : "eye")
                     }
                     .disabled(state.sourceFolder == nil)
                     .help(L("Watch release-notes folder for changes"))
@@ -246,7 +255,8 @@ struct ContentView: View {
                     } label: {
                         Label(L("Import Store Copy"), systemImage: "folder.badge.plus")
                     }
-                    .help(L("Import store copy from a local Markdown, YAML, JSON, text file, or metadata folder (⌘⇧O)."))
+                    .help(
+                        L("Import store copy from a local Markdown, YAML, JSON, text file, or metadata folder (⌘⇧O)."))
 
                     Button {
                         state.askAIToReparseCurrentStoreCopy()

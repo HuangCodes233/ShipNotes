@@ -117,11 +117,14 @@ struct StoreCopyParser {
             if values.isDirectory == true {
                 // Check if this subfolder is a per-locale folder (e.g. fastlane/metadata/en-US/)
                 if let folderLocale = mapper.resolve(entry.lastPathComponent) {
-                    if let subEntries = try? FileManager.default.contentsOfDirectory(at: entry, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) {
+                    if let subEntries = try? FileManager.default.contentsOfDirectory(
+                        at: entry, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])
+                    {
                         for subEntry in subEntries {
                             guard supportedExtensions.contains(subEntry.pathExtension.lowercased()) else { continue }
                             if let field = fieldFromFilename(subEntry),
-                               let text = try? String(contentsOf: subEntry, encoding: .utf8) {
+                                let text = try? String(contentsOf: subEntry, encoding: .utf8)
+                            {
                                 var existing = locales[folderLocale] ?? PartialStoreMetadataFields()
                                 existing.setValue(text, for: field)
                                 locales[folderLocale] = existing
@@ -135,7 +138,9 @@ struct StoreCopyParser {
             guard supportedExtensions.contains(entry.pathExtension.lowercased()) else { continue }
 
             let localeHint = localeFromFilename(entry) ?? defaultLocale
-            guard let parsed = try? parseFile(entry, defaultLocale: localeHint, allowPlainDescription: false) else { continue }
+            guard let parsed = try? parseFile(entry, defaultLocale: localeHint, allowPlainDescription: false) else {
+                continue
+            }
             for (locale, partial) in parsed.locales {
                 var existing = locales[locale] ?? PartialStoreMetadataFields()
                 existing.merge(partial)
@@ -269,11 +274,12 @@ struct StoreCopyParser {
         if let field = fieldFromFilename(url) {
             let localeBlocks = parseLocaleBlocks(text)
             if !localeBlocks.isEmpty {
-                let locales = Dictionary(uniqueKeysWithValues: localeBlocks.map { locale, body in
-                    var partial = PartialStoreMetadataFields()
-                    partial.setValue(body, for: field)
-                    return (locale, partial)
-                })
+                let locales = Dictionary(
+                    uniqueKeysWithValues: localeBlocks.map { locale, body in
+                        var partial = PartialStoreMetadataFields()
+                        partial.setValue(body, for: field)
+                        return (locale, partial)
+                    })
                 return ParsedStoreCopy(
                     locales: locales,
                     sourceFiles: Dictionary(uniqueKeysWithValues: locales.keys.map { ($0, url) }),
@@ -386,8 +392,9 @@ struct StoreCopyParser {
             }
 
             if !insideFence,
-               trimmed.hasPrefix("#"),
-               let firstTextIndex = trimmed.firstIndex(where: { $0 != "#" && !$0.isWhitespace }) {
+                trimmed.hasPrefix("#"),
+                let firstTextIndex = trimmed.firstIndex(where: { $0 != "#" && !$0.isWhitespace })
+            {
                 flush()
                 currentHeading = String(trimmed[firstTextIndex...]).trimmingCharacters(in: .whitespaces)
                 continue
@@ -435,7 +442,8 @@ struct StoreCopyParser {
     }
 
     private func extractSectionValue(_ body: String) -> String {
-        if let fenced = firstFencedCodeBlock(in: body), !fenced.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if let fenced = firstFencedCodeBlock(in: body), !fenced.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
             return fenced
         }
         let cleaned = body.components(separatedBy: .newlines).filter { line in
@@ -477,7 +485,8 @@ struct StoreCopyParser {
 
     private func localeFromFilename(_ url: URL) -> String? {
         let base = (url.lastPathComponent as NSString).deletingPathExtension
-        let normalized = base
+        let normalized =
+            base
             .replacingOccurrences(of: "_", with: "-")
             .replacingOccurrences(of: " ", with: "-")
         let tokens = normalized.split(separator: "-").map(String.init)
@@ -494,7 +503,8 @@ struct StoreCopyParser {
     }
 
     private func localeFromSectionHeading(_ heading: String) -> String? {
-        let cleaned = heading
+        let cleaned =
+            heading
             .replacingOccurrences(of: "—", with: " ")
             .replacingOccurrences(of: "-", with: " ")
             .replacingOccurrences(of: "[", with: " ")
@@ -529,7 +539,7 @@ struct StoreCopyParser {
             ("français", "fr-FR"),
             ("french", "fr-FR"),
             ("español", "es-ES"),
-            ("spanish", "es-ES")
+            ("spanish", "es-ES"),
         ]
         let lowercased = cleaned.lowercased()
         for (name, locale) in languageNames where lowercased.contains(name) {
@@ -559,25 +569,37 @@ struct StoreCopyParser {
         if compact.contains("appname") || key.contains("应用名称") || key.contains("app 名称") {
             return nil
         }
-        if compact.contains("subtitle") || compact == "sub" || key.contains("副标题") || key.contains("副標題") || key.contains("サブタイトル") {
+        if compact.contains("subtitle") || compact == "sub" || key.contains("副标题") || key.contains("副標題")
+            || key.contains("サブタイトル")
+        {
             return .subtitle
         }
-        if compact.contains("privacyurl") || compact.contains("privacypolicy") || compact.contains("privacy") || key.contains("隐私政策") || key.contains("隱私政策") || key.contains("プライバシー") {
+        if compact.contains("privacyurl") || compact.contains("privacypolicy") || compact.contains("privacy")
+            || key.contains("隐私政策") || key.contains("隱私政策") || key.contains("プライバシー")
+        {
             return .privacyPolicyURL
         }
-        if compact.contains("supporturl") || compact.contains("supportlink") || key.contains("支持 url") || key.contains("サポート url") {
+        if compact.contains("supporturl") || compact.contains("supportlink") || key.contains("支持 url")
+            || key.contains("サポート url")
+        {
             return .supportURL
         }
-        if compact.contains("marketingurl") || compact.contains("marketinglink") || key.contains("营销 url") || key.contains("マーケティング url") {
+        if compact.contains("marketingurl") || compact.contains("marketinglink") || key.contains("营销 url")
+            || key.contains("マーケティング url")
+        {
             return .marketingURL
         }
-        if compact.contains("promotionaltext") || compact.contains("promotext") || compact == "promo" || key.contains("推广文本") || key.contains("宣傳文字") || key.contains("プロモーション") {
+        if compact.contains("promotionaltext") || compact.contains("promotext") || compact == "promo"
+            || key.contains("推广文本") || key.contains("宣傳文字") || key.contains("プロモーション")
+        {
             return .promotionalText
         }
         if compact.contains("keyword") || key.contains("关键词") || key.contains("關鍵字") || key.contains("キーワード") {
             return .keywords
         }
-        if compact.contains("description") || compact == "desc" || key.contains("描述") || key.contains("说明") || key.contains("説明") || key.contains("beschreibung") {
+        if compact.contains("description") || compact == "desc" || key.contains("描述") || key.contains("说明")
+            || key.contains("説明") || key.contains("beschreibung")
+        {
             return .description
         }
         return nil

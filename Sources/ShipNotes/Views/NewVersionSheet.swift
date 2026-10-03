@@ -62,23 +62,30 @@ struct NewVersionSheet: View {
 
     private var form: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(L("Create a new editable version on App Store Connect. ShipNotes will switch to it automatically once created."))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Text(
+                L(
+                    "Create a new editable version on App Store Connect. ShipNotes will switch to it automatically once created."
+                )
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
 
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
                 GridRow {
                     Text(L("Version")).foregroundStyle(.secondary)
-                    TextField("1.8.0", text: Binding(
-                        get: { versionString },
-                        set: {
-                            versionString = $0
-                            versionWasEdited = true
-                        }
-                    ))
-                        .textFieldStyle(.roundedBorder)
-                        .disableAutocorrection(true)
+                    TextField(
+                        "1.8.0",
+                        text: Binding(
+                            get: { versionString },
+                            set: {
+                                versionString = $0
+                                versionWasEdited = true
+                            }
+                        )
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .disableAutocorrection(true)
                 }
                 GridRow {
                     Text(L("Platform")).foregroundStyle(.secondary)
@@ -93,10 +100,14 @@ struct NewVersionSheet: View {
                 }
             }
 
-            Text(L("Your API key needs at least App Manager role to create versions. Version must be greater than the latest released version (e.g., 1.7.0 → 1.8.0)."))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Text(
+                L(
+                    "Your API key needs at least App Manager role to create versions. Version must be greater than the latest released version (e.g., 1.7.0 → 1.8.0)."
+                )
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
 
             if let err = localError {
                 Label(err, systemImage: "exclamationmark.triangle.fill")
@@ -252,9 +263,10 @@ struct NewVersionSheet: View {
 
         return grouped.compactMap { version, builds in
             guard let version, !version.isEmpty, !existingVersions.contains(version),
-                  let latestBuild = builds.max(by: {
-                      ($0.uploadedDate ?? .distantPast) < ($1.uploadedDate ?? .distantPast)
-                  }) else { return nil }
+                let latestBuild = builds.max(by: {
+                    ($0.uploadedDate ?? .distantPast) < ($1.uploadedDate ?? .distantPast)
+                })
+            else { return nil }
             return UploadedVersionSummary(version: version, latestBuild: latestBuild)
         }
         .sorted { $0.version.compare($1.version, options: .numeric) == .orderedDescending }
@@ -268,7 +280,7 @@ struct NewVersionSheet: View {
         .readyForSale,
         .developerRemovedFromSale,
         .removedFromSale,
-        .replacedWithNewVersion
+        .replacedWithNewVersion,
     ]
 
     static func defaultPlatform(
@@ -276,7 +288,8 @@ struct NewVersionSheet: View {
         selectedAppId: String?,
         versionsByApp: [String: [ReleaseVersion]]
     ) -> Platform {
-        let display = selectedVersion?.platform
+        let display =
+            selectedVersion?.platform
             ?? selectedAppId.flatMap { versionsByApp[$0]?.first?.platform }
             ?? "iOS"
         return Platform(displayName: display)
@@ -290,7 +303,8 @@ struct NewVersionSheet: View {
         selectedAppId: String?,
         versionsByApp: [String: [ReleaseVersion]]
     ) -> String {
-        let candidate = selectedAppId
+        let candidate =
+            selectedAppId
             .flatMap { versionsByApp[$0] }?
             .max(by: { $0.versionString.compare($1.versionString, options: .numeric) == .orderedAscending })?
             .versionString

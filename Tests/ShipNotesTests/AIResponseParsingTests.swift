@@ -5,11 +5,11 @@ import Testing
 struct AIResponseParsingTests {
     @Test func localesFromFencedJSON() throws {
         let content = """
-        Here you go:
-        ```json
-        {"locales": {"en-US": "Hello", "ja": "こんにちは"}}
-        ```
-        """
+            Here you go:
+            ```json
+            {"locales": {"en-US": "Hello", "ja": "こんにちは"}}
+            ```
+            """
         let locales = try AIResponseParsing.locales(fromContent: content)
         #expect(locales["en-US"] == "Hello")
         #expect(locales["ja"] == "こんにちは")
@@ -22,13 +22,13 @@ struct AIResponseParsingTests {
 
     @Test func storeMetadataReadsSnakeAndCamelKeys() throws {
         let json = """
-        {
-          "description": "Desc",
-          "promotional_text": "Promo",
-          "support_url": "https://example.com/support",
-          "marketingUrl": "https://example.com"
-        }
-        """
+            {
+              "description": "Desc",
+              "promotional_text": "Promo",
+              "support_url": "https://example.com/support",
+              "marketingUrl": "https://example.com"
+            }
+            """
         let metadata = try AIResponseParsing.storeMetadata(fromContent: json)
         #expect(metadata.description == "Desc")
         #expect(metadata.promotionalText == "Promo")

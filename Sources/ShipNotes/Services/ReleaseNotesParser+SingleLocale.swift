@@ -16,7 +16,8 @@ extension ReleaseNotesParser {
         let raw = try preloadedText ?? FileScannerUtils.readText(at: url)
         let resolved: String
         if let detected = mapper.detectLocale(fromFilename: url.lastPathComponent),
-           let r = mapper.resolve(detected) {
+            let r = mapper.resolve(detected)
+        {
             resolved = r
         } else if let fallback = defaultLocale {
             // Used when parseFolder picked a file by structural convention
@@ -43,37 +44,41 @@ extension ReleaseNotesParser {
         let sections = markdownSections(from: text)
         for (index, section) in sections.enumerated() {
             let codeBlocks = extractCodeBlockContents(section.body)
-            let rawBody = codeBlocks.first.map {
-                extractReleaseNotes(fromCodeBlock: $0, matchingVersion: matchingVersion)
-            } ?? stripMarkdownScaffolding(section.body)
+            let rawBody =
+                codeBlocks.first.map {
+                    extractReleaseNotes(fromCodeBlock: $0, matchingVersion: matchingVersion)
+                } ?? stripMarkdownScaffolding(section.body)
             let body = rawBody.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !body.isEmpty else { continue }
-            candidates.append(ReleaseNoteImportCandidate(
-                id: "section-\(index)",
-                title: section.title,
-                text: body,
-                confidence: candidateConfidence(for: section.title)
-            ))
+            candidates.append(
+                ReleaseNoteImportCandidate(
+                    id: "section-\(index)",
+                    title: section.title,
+                    text: body,
+                    confidence: candidateConfidence(for: section.title)
+                ))
         }
 
         if let body = legacyVersionedCodeBlockBody(from: text, matchingVersion: matchingVersion) {
-            candidates.append(ReleaseNoteImportCandidate(
-                id: "version-log",
-                title: L("Versioned release notes"),
-                text: body,
-                confidence: .medium
-            ))
+            candidates.append(
+                ReleaseNoteImportCandidate(
+                    id: "version-log",
+                    title: L("Versioned release notes"),
+                    text: body,
+                    confidence: .medium
+                ))
         }
 
         if candidates.isEmpty {
             let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !body.isEmpty {
-                candidates.append(ReleaseNoteImportCandidate(
-                    id: "whole-file",
-                    title: L("Whole file"),
-                    text: body,
-                    confidence: .low
-                ))
+                candidates.append(
+                    ReleaseNoteImportCandidate(
+                        id: "whole-file",
+                        title: L("Whole file"),
+                        text: body,
+                        confidence: .low
+                    ))
             }
         }
 
@@ -92,9 +97,11 @@ extension ReleaseNotesParser {
         // Find the first code block that mentions a semver-ish version. That's
         // the "release notes log" in this kind of file — other code blocks
         // (App Name, Subtitle, Description, Keywords) won't contain versions.
-        guard let releaseNotesBlock = codeBlocks.first(where: {
-            $0.range(of: versionPattern, options: .regularExpression) != nil
-        }) else {
+        guard
+            let releaseNotesBlock = codeBlocks.first(where: {
+                $0.range(of: versionPattern, options: .regularExpression) != nil
+            })
+        else {
             return nil
         }
 
@@ -168,7 +175,8 @@ extension ReleaseNotesParser {
                 }
             }
             chunks.append(current.joined(separator: "\n"))
-            subSections = chunks
+            subSections =
+                chunks
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
         } else {
@@ -187,7 +195,8 @@ extension ReleaseNotesParser {
             }
         }
         // Fallback: latest = first sub-section.
-        return subSections.first.map(stripVersionHeader) ?? releaseNotesBlock.trimmingCharacters(in: .whitespacesAndNewlines)
+        return subSections.first.map(stripVersionHeader)
+            ?? releaseNotesBlock.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func isLevelTwoHeading(_ line: String) -> Bool {

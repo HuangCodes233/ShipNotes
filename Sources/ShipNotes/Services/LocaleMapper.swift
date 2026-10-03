@@ -6,7 +6,7 @@ struct LocaleMapper {
         "en-AU", "en-CA", "en-GB", "en-US", "fi", "fr-CA", "fr-FR",
         "de-DE", "el", "he", "hi", "hu", "id", "it", "ja", "ko", "ms",
         "no", "pl", "pt-BR", "pt-PT", "ro", "ru", "sk", "es-MX", "es-ES",
-        "sv", "th", "tr", "uk", "vi"
+        "sv", "th", "tr", "uk", "vi",
     ]
 
     static let aliases: [String: String] = [
@@ -21,7 +21,7 @@ struct LocaleMapper {
         "fr": "fr-FR",
         "de": "de-DE",
         "nl": "nl-NL",
-        "ar": "ar-SA"
+        "ar": "ar-SA",
     ]
 
     /// Deterministic per-language fallback when the exact region isn't in the
@@ -61,11 +61,12 @@ struct LocaleMapper {
         let direct = value.replacingOccurrences(of: "_", with: "-")
         var tokens: [String] = []
         let range = NSRange(value.startIndex..<value.endIndex, in: value)
-        tokens.append(contentsOf: localeTokenRegex.matches(in: value, range: range).compactMap { match in
-            let matchRange = match.numberOfRanges > 1 ? match.range(at: 1) : match.range
-            guard let range = Range(matchRange, in: value) else { return nil }
-            return String(value[range]).replacingOccurrences(of: "_", with: "-")
-        })
+        tokens.append(
+            contentsOf: localeTokenRegex.matches(in: value, range: range).compactMap { match in
+                let matchRange = match.numberOfRanges > 1 ? match.range(at: 1) : match.range
+                guard let range = Range(matchRange, in: value) else { return nil }
+                return String(value[range]).replacingOccurrences(of: "_", with: "-")
+            })
         tokens.append(direct)
 
         let separators = CharacterSet(charactersIn: " _-./()[]")
@@ -74,7 +75,8 @@ struct LocaleMapper {
             let first = parts[index]
             let second = parts[parts.index(after: index)]
             if first.count >= 2, first.count <= 3, second.count >= 2, second.count <= 4,
-               first.allSatisfy(\.isLetter), second.allSatisfy(\.isLetter) {
+                first.allSatisfy(\.isLetter), second.allSatisfy(\.isLetter)
+            {
                 tokens.append("\(first)-\(second)")
             }
         }
@@ -104,7 +106,8 @@ struct LocaleMapper {
         var strong: [String] = []
         var weak: [String] = []
         for basename in ordered {
-            let whole = basename
+            let whole =
+                basename
                 .trimmingCharacters(in: .whitespaces)
                 .replacingOccurrences(of: "_", with: "-")
             if isLocaleShaped(whole, allowsBareLanguage: true) {
@@ -124,7 +127,8 @@ struct LocaleMapper {
                 }
             }
 
-            let parts = basename
+            let parts =
+                basename
                 .components(separatedBy: CharacterSet(charactersIn: " _-./()[]"))
                 .filter { !$0.isEmpty }
             guard parts.count > 1 else { continue }
@@ -137,7 +141,8 @@ struct LocaleMapper {
             for part in parts {
                 let lowered = part.lowercased()
                 guard (2...3).contains(part.count), part.allSatisfy(\.isLetter),
-                      !ambiguousBareLanguageCodes.contains(lowered) else { continue }
+                    !ambiguousBareLanguageCodes.contains(lowered)
+                else { continue }
                 weak.append(part)
             }
         }
@@ -149,14 +154,14 @@ struct LocaleMapper {
     /// Language codes that are also everyday words or abbreviations in file
     /// names ("no ads", "try it", "hi res", "UK store", "Screen VI").
     static let ambiguousBareLanguageCodes: Set<String> = [
-        "he", "hi", "id", "it", "ms", "no", "uk", "vi"
+        "he", "hi", "id", "it", "ms", "no", "uk", "vi",
     ]
 
     /// For the ambiguous codes, `xx-YY` pairs such as `no-ad`, `hi-fi` or
     /// `it-is` are English too, so only the language's own region counts.
     static let ambiguousLanguageRegions: [String: String] = [
         "he": "IL", "hi": "IN", "id": "ID", "it": "IT",
-        "ms": "MY", "no": "NO", "uk": "UA", "vi": "VN"
+        "ms": "MY", "no": "NO", "uk": "UA", "vi": "VN",
     ]
 
     private static let scriptCodes: Set<String> = ["hans", "hant", "latn", "cyrl", "arab"]
@@ -169,15 +174,17 @@ struct LocaleMapper {
         // Every subtag must be letters, so `zh-Hant_6.9inch_01` as a whole is
         // not mistaken for a locale (its `zh-Hant` part is found separately).
         guard let language = parts.first,
-              (2...3).contains(language.count),
-              parts.count <= 3,
-              parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.isASCII && $0.isLetter } }) else { return false }
+            (2...3).contains(language.count),
+            parts.count <= 3,
+            parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.isASCII && $0.isLetter } })
+        else { return false }
         guard parts.count > 1 else { return allowsBareLanguage }
 
         let second = parts[1]
         let pair = "\(language.lowercased())-\(second)"
         if appStoreLocales.contains(where: { $0.caseInsensitiveCompare(pair) == .orderedSame })
-            || aliases.keys.contains(where: { $0.caseInsensitiveCompare(pair) == .orderedSame }) {
+            || aliases.keys.contains(where: { $0.caseInsensitiveCompare(pair) == .orderedSame })
+        {
             return true
         }
         if let region = ambiguousLanguageRegions[language.lowercased()] {

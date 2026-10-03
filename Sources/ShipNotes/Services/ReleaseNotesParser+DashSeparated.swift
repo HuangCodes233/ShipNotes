@@ -38,7 +38,8 @@ extension ReleaseNotesParser {
 
         let inferredVersion = inferVersionFromText(text)
         return ParsedReleaseNotes(
-            version: currentVersion ?? inferredVersion ?? inferVersion(fromFolderName: url.deletingPathExtension().lastPathComponent),
+            version: currentVersion ?? inferredVersion
+                ?? inferVersion(fromFolderName: url.deletingPathExtension().lastPathComponent),
             locales: locales,
             sourceFiles: sourceFiles,
             sourceDescription: url.lastPathComponent + (inferredVersion.map { " · v\($0)" } ?? ""),
@@ -61,10 +62,11 @@ extension ReleaseNotesParser {
 
         func flush() {
             guard let heading = currentHeading else { return }
-            sections.append(DashSection(
-                heading: heading,
-                body: currentBody.joined(separator: "\n")
-            ))
+            sections.append(
+                DashSection(
+                    heading: heading,
+                    body: currentBody.joined(separator: "\n")
+                ))
             currentHeading = nil
             currentBody = []
         }
@@ -74,7 +76,8 @@ extension ReleaseNotesParser {
                 flush()
                 // Strip leading/trailing dashes + whitespace to get just the heading.
                 let raw = String(line[range])
-                let trimmed = raw
+                let trimmed =
+                    raw
                     .trimmingCharacters(in: .whitespaces)
                     .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
                     .trimmingCharacters(in: .whitespaces)

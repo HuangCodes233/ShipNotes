@@ -17,7 +17,8 @@ extension ReleaseNotesParser {
         var candidatesByLocale: [String: [ReleaseNoteImportCandidate]] = [:]
         for file in mdFiles {
             guard let raw = mapper.detectLocale(fromFilename: file.lastPathComponent),
-                  let resolved = mapper.resolve(raw) else { continue }
+                let resolved = mapper.resolve(raw)
+            else { continue }
             let text = try FileScannerUtils.readText(at: file)
             let candidates = importCandidates(from: text, matchingVersion: currentVersion)
             let body = preferredReleaseNotesBody(from: candidates) ?? text
@@ -32,10 +33,12 @@ extension ReleaseNotesParser {
                 guard fm.fileExists(atPath: entry.path, isDirectory: &isDir), isDir.boolValue else { continue }
                 guard let resolvedLocale = mapper.resolve(entry.lastPathComponent) else { continue }
                 if let subFiles = try? fm.contentsOfDirectory(at: entry, includingPropertiesForKeys: nil) {
-                    let noteFiles = subFiles
+                    let noteFiles =
+                        subFiles
                         .sorted { $0.path < $1.path }
                         .filter { file in
-                            let name = ((file.lastPathComponent as NSString).deletingPathExtension).lowercased().filter { $0.isLetter }
+                            let name = ((file.lastPathComponent as NSString).deletingPathExtension).lowercased().filter
+                            { $0.isLetter }
                             return ["releasenotes", "whatsnew", "release", "notes"].contains(name)
                         }
                     if let noteFile = noteFiles.first, let text = try? FileScannerUtils.readText(at: noteFile) {
@@ -127,7 +130,8 @@ extension ReleaseNotesParser {
         }
 
         // 2. Highest-numbered versioned file (semver-style numeric compare).
-        let versionedSorted = candidates
+        let versionedSorted =
+            candidates
             .filter { $0.version != nil }
             .sorted { $0.version!.compare($1.version!, options: .numeric) == .orderedDescending }
         if let highest = versionedSorted.first { return highest.url }
@@ -145,7 +149,7 @@ extension ReleaseNotesParser {
             "releasenotes",
             "release",
             "whatsnew",
-            "locales"
+            "locales",
         ]
 
         return contents.first { url in
@@ -161,10 +165,11 @@ extension ReleaseNotesParser {
 
         func walk(_ current: URL, depth: Int) {
             guard depth <= maxDepth else { return }
-            let contents = (try? FileManager.default.contentsOfDirectory(
-                at: current,
-                includingPropertiesForKeys: nil
-            )) ?? []
+            let contents =
+                (try? FileManager.default.contentsOfDirectory(
+                    at: current,
+                    includingPropertiesForKeys: nil
+                )) ?? []
             for child in contents.sorted(by: { $0.path < $1.path }) {
                 let childIsDirectory = isDirectory(child)
                 if FileScannerUtils.shouldSkip(child, isDirectory: childIsDirectory) { continue }

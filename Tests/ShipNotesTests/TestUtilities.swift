@@ -52,7 +52,8 @@ private func englishTemplate(for key: String) -> String {
     // resource bundle the same way Localization.swift does at runtime.
     let resourceBundle: Bundle = {
         if let url = Bundle.main.url(forResource: "ShipNotes_ShipNotes", withExtension: "bundle"),
-           let bundle = Bundle(url: url) {
+            let bundle = Bundle(url: url)
+        {
             return bundle
         }
         // Fallback for test runs: derive the bundle from this file's path
@@ -66,7 +67,8 @@ private func englishTemplate(for key: String) -> String {
         return Bundle.main
     }()
     guard let path = resourceBundle.path(forResource: "en", ofType: "lproj"),
-          let bundle = Bundle(path: path) else {
+        let bundle = Bundle(path: path)
+    else {
         return key
     }
     let value = bundle.localizedString(forKey: key, value: key, table: nil)

@@ -38,10 +38,12 @@ struct ImportReviewSheet: View {
     private var content: some View {
         if let parsed = state.pendingImport {
             HStack(spacing: 0) {
-                List(selection: Binding(
-                    get: { state.pendingImportSelectedLocale },
-                    set: { state.pendingImportSelectedLocale = $0 }
-                )) {
+                List(
+                    selection: Binding(
+                        get: { state.pendingImportSelectedLocale },
+                        set: { state.pendingImportSelectedLocale = $0 }
+                    )
+                ) {
                     ForEach(locales, id: \.self) { locale in
                         LocaleImportRow(locale: locale, candidates: parsed.candidatesByLocale[locale] ?? [])
                             .tag(Optional(locale))
@@ -80,10 +82,13 @@ struct ImportReviewSheet: View {
             }
 
             if let locale {
-                Picker(L("Detected Field"), selection: Binding(
-                    get: { state.pendingImportSelections[locale] ?? candidates.first?.id ?? "" },
-                    set: { state.pendingImportSelections[locale] = $0 }
-                )) {
+                Picker(
+                    L("Detected Field"),
+                    selection: Binding(
+                        get: { state.pendingImportSelections[locale] ?? candidates.first?.id ?? "" },
+                        set: { state.pendingImportSelections[locale] = $0 }
+                    )
+                ) {
                     ForEach(candidates) { candidate in
                         Text(candidate.title).tag(candidate.id)
                     }

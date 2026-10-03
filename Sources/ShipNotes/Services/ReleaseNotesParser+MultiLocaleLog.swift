@@ -72,10 +72,11 @@ extension ReleaseNotesParser {
 
         func flushLanguage() {
             guard let heading = currentLangHeading else { return }
-            currentLangSections.append(LogLanguageSection(
-                heading: heading,
-                body: currentLangBody.joined(separator: "\n")
-            ))
+            currentLangSections.append(
+                LogLanguageSection(
+                    heading: heading,
+                    body: currentLangBody.joined(separator: "\n")
+                ))
             currentLangHeading = nil
             currentLangBody = []
         }
@@ -83,10 +84,11 @@ extension ReleaseNotesParser {
         func flushVersion() {
             flushLanguage()
             if let version = currentVersion, !currentLangSections.isEmpty {
-                sections.append(LogVersionSection(
-                    version: version,
-                    languageSections: currentLangSections
-                ))
+                sections.append(
+                    LogVersionSection(
+                        version: version,
+                        languageSections: currentLangSections
+                    ))
             }
             currentVersion = nil
             currentLangSections = []
@@ -149,7 +151,8 @@ extension ReleaseNotesParser {
         currentVersion: String?
     ) -> LogVersionSection? {
         if let v = currentVersion,
-           let match = sections.first(where: { logVersionMatches($0.version, requested: v) }) {
+            let match = sections.first(where: { logVersionMatches($0.version, requested: v) })
+        {
             return match
         }
         return sections.first
@@ -201,7 +204,7 @@ extension ReleaseNotesParser {
         ("🇸🇦", "ar-SA"), ("🇦🇪", "ar-SA"),
         ("🇮🇳", "hi"),
         ("🇺🇦", "uk"),
-        ("🇭🇷", "hr")
+        ("🇭🇷", "hr"),
     ]
 
     /// Order matters — more specific entries first. Lower-cased for case-insensitive match.
@@ -264,9 +267,8 @@ extension ReleaseNotesParser {
         ("vietnamese", "vi"),
         ("indonesian", "id"),
         ("malay", "ms"),
-        ("thai", "th")
+        ("thai", "th"),
     ]
-
 
     /// Map a heading like "### 🇨🇳 简体中文" / "--- English（美国）---" / etc.
     /// to an App Store Connect locale. Tries: flag emoji → explicit locale code
@@ -289,7 +291,8 @@ extension ReleaseNotesParser {
         let lower = heading.lowercased()
         for (name, defaultLocale) in Self.languageNameToLocale where lower.contains(name.lowercased()) {
             if let region = regionFromParens,
-               let withRegion = combineLanguageWithRegion(name: name.lowercased(), region: region) {
+                let withRegion = combineLanguageWithRegion(name: name.lowercased(), region: region)
+            {
                 return withRegion
             }
             return defaultLocale
@@ -329,7 +332,7 @@ extension ReleaseNotesParser {
             "português": ["BR": "pt-BR", "PT": "pt-PT"],
             "portugues": ["BR": "pt-BR", "PT": "pt-PT"],
             "portuguese": ["BR": "pt-BR", "PT": "pt-PT"],
-            "chinese": ["CN": "zh-Hans", "TW": "zh-Hant", "HK": "zh-Hant", "SG": "zh-Hans"]
+            "chinese": ["CN": "zh-Hans", "TW": "zh-Hant", "HK": "zh-Hant", "SG": "zh-Hans"],
         ]
         return combinations[name]?[region]
     }
@@ -357,6 +360,6 @@ extension ReleaseNotesParser {
         ("brazil", "BR"), ("portugal", "PT"),
         ("france", "FR"), ("germany", "DE"),
         ("usa", "US"), ("u.s.", "US"),
-        ("uk", "GB"), ("u.k.", "GB")
+        ("uk", "GB"), ("u.k.", "GB"),
     ]
 }

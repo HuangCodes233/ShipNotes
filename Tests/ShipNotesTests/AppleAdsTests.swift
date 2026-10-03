@@ -7,7 +7,8 @@ import Testing
 struct AppleAdsTests {
     @Test func bulkKeywordsDecodeDocumentedArrayAndRejectPartialSuccess() throws {
         let data = Data(#"{"result":[{"correlationId":0,"success":true},{"correlationId":1,"success":false}]}"#.utf8)
-        let envelope = try JSONDecoder().decode(AppleAdsEnvelope<AppleAdsListResult<AdsBulkResultItem>>.self, from: data)
+        let envelope = try JSONDecoder().decode(
+            AppleAdsEnvelope<AppleAdsListResult<AdsBulkResultItem>>.self, from: data)
         let items = try #require(envelope.result?.extracted)
         #expect(throws: AppleAdsClientError.self) {
             try AppleAdsClient.validateBulkKeywordResult(items, expectedCount: 2)
@@ -26,7 +27,8 @@ struct AppleAdsTests {
                 from: Data(#"{"report":{"lines":[]}}"#.utf8)
             )
         }
-        let explicitlyEmpty = try decoder.decode(AppleAdsListResult<AdsReportRowDTO>.self, from: Data(#"{"data":null}"#.utf8))
+        let explicitlyEmpty = try decoder.decode(
+            AppleAdsListResult<AdsReportRowDTO>.self, from: Data(#"{"data":null}"#.utf8))
         #expect(explicitlyEmpty.extracted.isEmpty)
         let emptyArray = try decoder.decode(AppleAdsListResult<AdsReportRowDTO>.self, from: Data(#"{"data":[]}"#.utf8))
         #expect(emptyArray.extracted.isEmpty)
@@ -34,11 +36,12 @@ struct AppleAdsTests {
 
     @Test func reportingResponseRowsAreDecoded() throws {
         let payload = #"""
-        {"data":{"reportingDataResponse":{"row":[
-          {"metadata":{"campaignId":1},"total":{"taps":5,"impressions":90,"installs":2,"localSpend":{"amount":"2.50","currency":"EUR"}}}
-        ]}}}
-        """#
-        let envelope = try JSONDecoder().decode(AppleAdsEnvelope<AppleAdsListResult<AdsReportRowDTO>>.self, from: Data(payload.utf8))
+            {"data":{"reportingDataResponse":{"row":[
+              {"metadata":{"campaignId":1},"total":{"taps":5,"impressions":90,"installs":2,"localSpend":{"amount":"2.50","currency":"EUR"}}}
+            ]}}}
+            """#
+        let envelope = try JSONDecoder().decode(
+            AppleAdsEnvelope<AppleAdsListResult<AdsReportRowDTO>>.self, from: Data(payload.utf8))
         let row = try #require(envelope.result?.extracted.first)
         let metrics = row.asMetrics(campaignId: "1")
         #expect(metrics.taps == 5)
@@ -58,7 +61,7 @@ struct AppleAdsTests {
         for (payload, expected) in [
             (#"{"adamId":123,"state":"ELIGIBLE"}"#, true),
             (#"{"adamId":123,"state":"INELIGIBLE"}"#, false),
-            (#"{"adamId":123}"#, false)
+            (#"{"adamId":123}"#, false),
         ] {
             let dto = try JSONDecoder().decode(AdsEligibilityDTO.self, from: Data(payload.utf8))
             #expect(dto.asModel(adamId: "123").isEligible == expected)
@@ -162,11 +165,14 @@ struct AppleAdsTests {
         let array = try JSONDecoder().decode(AppleAdsEnvelope<AppleAdsListResult<AdsCampaignDTO>>.self, from: arrayJSON)
         #expect(array.result?.extracted.first?.asModel.name == "US Search")
 
-        let wrappedJSON = Data(#"{"success":true,"result":{"campaigns":[{"id":2,"name":"Brand","promotedObjectId":"111"}]}}"#.utf8)
-        let wrapped = try JSONDecoder().decode(AppleAdsEnvelope<AppleAdsListResult<AdsCampaignDTO>>.self, from: wrappedJSON)
+        let wrappedJSON = Data(
+            #"{"success":true,"result":{"campaigns":[{"id":2,"name":"Brand","promotedObjectId":"111"}]}}"#.utf8)
+        let wrapped = try JSONDecoder().decode(
+            AppleAdsEnvelope<AppleAdsListResult<AdsCampaignDTO>>.self, from: wrappedJSON)
         #expect(wrapped.result?.extracted.first?.asModel.adamId == "111")
 
-        let dataJSON = Data(#"{"success":true,"data":[{"id":"acl-1","orgName":"Studio","currency":"USD","roleNames":["ADMIN"]}]}"#.utf8)
+        let dataJSON = Data(
+            #"{"success":true,"data":[{"id":"acl-1","orgName":"Studio","currency":"USD","roleNames":["ADMIN"]}]}"#.utf8)
         let acls = try JSONDecoder().decode(AppleAdsEnvelope<AppleAdsListResult<AdsACLDTO>>.self, from: dataJSON)
         #expect(acls.result?.extracted.first?.asModel.account.name == "Studio")
     }
@@ -175,9 +181,9 @@ struct AppleAdsTests {
         let phrases = AppleAdsKeywordSeed.phrases(
             keywords: "screenshot manager, app store、release notes",
             whatsNew: """
-            • Faster import
-            Fix crash on launch
-            """,
+                • Faster import
+                Fix crash on launch
+                """,
             appName: "Example Gallery"
         )
         #expect(phrases.contains("screenshot manager"))
@@ -210,7 +216,9 @@ struct AppleAdsAppStateTests {
     @Test func failedAdsConnectionKeepsErrorWhenSavingAndTesting() async {
         let store = InMemoryAppleAdsCredentialStore()
         let state = AppState(appleAdsCredentialStore: store, defaults: makeTestDefaults())
-        await state.saveAppleAdsCredentials(name: "Invalid", clientId: "client", teamId: "team", keyId: "key", privateKeyPEM: "invalid-pem", adAccountId: "123")
+        await state.saveAppleAdsCredentials(
+            name: "Invalid", clientId: "client", teamId: "team", keyId: "key", privateKeyPEM: "invalid-pem",
+            adAccountId: "123")
         #expect(state.lastError != nil)
         #expect(state.isUsingSampleAds)
         state.lastError = nil
@@ -311,7 +319,10 @@ struct AppleAdsAppStateTests {
             )
         )
         #expect(state.lastError == nil)
-        #expect(state.appleAdsCampaigns.contains { $0.name == "ShipNotes Search" && $0.adamId == "app-3" && $0.status == "PAUSED" })
+        #expect(
+            state.appleAdsCampaigns.contains {
+                $0.name == "ShipNotes Search" && $0.adamId == "app-3" && $0.status == "PAUSED"
+            })
     }
 
     @Test func submitOffersPromoteOnlyWhenAdsAreConfigured() async {
@@ -331,7 +342,9 @@ struct AppleAdsAppStateTests {
             appleAdsCredentialStore: InMemoryAppleAdsCredentialStore(),
             defaults: makeTestDefaults()
         )
-        unconfigured.apps = [AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")]
+        unconfigured.apps = [
+            AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app")
+        ]
         unconfigured.versionsByApp["app-1"] = [version]
         unconfigured.selectedAppId = "app-1"
         unconfigured.selectedVersionId = "v-1"
@@ -364,7 +377,8 @@ struct AppleAdsAppStateTests {
 }
 
 private func decodeJSONPart(_ value: String) throws -> [String: Any] {
-    var base64 = value
+    var base64 =
+        value
         .replacingOccurrences(of: "-", with: "+")
         .replacingOccurrences(of: "_", with: "/")
     while base64.count % 4 != 0 {

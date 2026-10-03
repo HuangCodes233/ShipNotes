@@ -1,5 +1,5 @@
-import Testing
 import Foundation
+import Testing
 @testable import ShipNotes
 
 /// Tests the multi-locale release-notes-log format: a single .md file that
@@ -92,92 +92,92 @@ struct MultiLocaleReleaseNotesLogTests {
 
     // Synthetic multilingual fixture with version and locale headings.
     private let demoLog = """
-    # Release Notes — Demo Planner
+        # Release Notes — Demo Planner
 
-    Fictional release notes for parser regression tests.
+        Fictional release notes for parser regression tests.
 
-    ---
+        ---
 
-    ## v1.7.0 — Visual Refresh
+        ## v1.7.0 — Visual Refresh
 
-    ### 🇨🇳 简体中文
-    ```
-    v1.7 — 视觉升级
+        ### 🇨🇳 简体中文
+        ```
+        v1.7 — 视觉升级
 
-    • 示例图标加入呼吸动画
-    • 更新任务卡片样式
-    ```
+        • 示例图标加入呼吸动画
+        • 更新任务卡片样式
+        ```
 
-    ### 🇺🇸 English
-    ```
-    v1.7 — Visual Refresh
+        ### 🇺🇸 English
+        ```
+        v1.7 — Visual Refresh
 
-    • Added animation to the sample icon
-    • Updated task card styling
-    ```
+        • Added animation to the sample icon
+        • Updated task card styling
+        ```
 
-    ### 🇯🇵 日本語
-    ```
-    v1.7 — ビジュアル刷新
+        ### 🇯🇵 日本語
+        ```
+        v1.7 — ビジュアル刷新
 
-    • サンプルアイコンにアニメーションを追加
-    • タスクカードの表示を更新
-    ```
+        • サンプルアイコンにアニメーションを追加
+        • タスクカードの表示を更新
+        ```
 
-    ### 🇰🇷 한국어
-    ```
-    v1.7 — 비주얼 리프레시
+        ### 🇰🇷 한국어
+        ```
+        v1.7 — 비주얼 리프레시
 
-    • 예제 아이콘에 애니메이션 추가
-    • 작업 카드 표시 업데이트
-    ```
+        • 예제 아이콘에 애니메이션 추가
+        • 작업 카드 표시 업데이트
+        ```
 
-    ### 🇹🇼 繁體中文
-    ```
-    v1.7 — 視覺升級
+        ### 🇹🇼 繁體中文
+        ```
+        v1.7 — 視覺升級
 
-    • 範例圖示加入動畫
-    • 更新任務卡片樣式
-    ```
+        • 範例圖示加入動畫
+        • 更新任務卡片樣式
+        ```
 
-    ### 🇪🇸 Español
-    ```
-    v1.7 — Renovación visual
+        ### 🇪🇸 Español
+        ```
+        v1.7 — Renovación visual
 
-    • Animación para el icono de ejemplo
-    • Nuevo estilo para las tarjetas de tareas
-    ```
+        • Animación para el icono de ejemplo
+        • Nuevo estilo para las tarjetas de tareas
+        ```
 
-    ---
+        ---
 
-    ## v1.6.0 — Achievements
+        ## v1.6.0 — Achievements
 
-    ### 🇨🇳 简体中文
-    ```
-    成就系统：完成示例任务后显示徽章。
-    ```
+        ### 🇨🇳 简体中文
+        ```
+        成就系统：完成示例任务后显示徽章。
+        ```
 
-    ### 🇺🇸 English
-    ```
-    Achievements: badges for completed sample tasks.
-    ```
+        ### 🇺🇸 English
+        ```
+        Achievements: badges for completed sample tasks.
+        ```
 
-    ---
+        ---
 
-    ## v1.5.0 — Statistics
+        ## v1.5.0 — Statistics
 
-    ### 🇺🇸 English
-    ```
-    Statistics: a summary of completed sample tasks.
-    ```
+        ### 🇺🇸 English
+        ```
+        Statistics: a summary of completed sample tasks.
+        ```
 
-    ---
+        ---
 
-    ## v1.0.0 — First release
+        ## v1.0.0 — First release
 
-    ### 🇺🇸 English
-    ```
-    First release, welcome to Demo Planner.
-    ```
-    """
+        ### 🇺🇸 English
+        ```
+        First release, welcome to Demo Planner.
+        ```
+        """
 }

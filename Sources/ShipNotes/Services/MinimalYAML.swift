@@ -51,7 +51,8 @@ struct MinimalYAML {
             var valuePart = String(content[content.index(after: colon)...]).trimmingCharacters(in: .whitespaces)
             // Strip a trailing " # comment" from plain scalar values.
             if !valuePart.hasPrefix("\"") && !valuePart.hasPrefix("'"),
-               let hash = valuePart.range(of: " #") {
+                let hash = valuePart.range(of: " #")
+            {
                 valuePart = String(valuePart[..<hash.lowerBound]).trimmingCharacters(in: .whitespaces)
             }
             index += 1

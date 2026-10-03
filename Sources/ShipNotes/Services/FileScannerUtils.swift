@@ -7,7 +7,8 @@ enum FileScannerUtils {
         if ["git", "build", "deriveddata", "nodemodules", "swiftpm", "pods"].contains(normalized) {
             return true
         }
-        return ["xcodeproj", "xcworkspace", "xcassets", "app", "framework", "bundle"].contains(url.pathExtension.lowercased())
+        return ["xcodeproj", "xcworkspace", "xcassets", "app", "framework", "bundle"].contains(
+            url.pathExtension.lowercased())
     }
 
     /// Conventional App Store metadata folder paths under a project/root directory.
@@ -18,7 +19,7 @@ enum FileScannerUtils {
             root.appending(path: "AppStore").appending(path: "metadata"),
             root.appending(path: "AppStore").appending(path: "Metadata"),
             root.appending(path: "metadata"),
-            root.appending(path: "Metadata")
+            root.appending(path: "Metadata"),
         ]
     }
 
@@ -41,7 +42,8 @@ enum FileScannerUtils {
     static func readText(at url: URL) throws -> String {
         var text = try String(contentsOf: url, encoding: .utf8)
         if text.hasPrefix("\u{FEFF}") { text.removeFirst() }
-        return text
+        return
+            text
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
     }

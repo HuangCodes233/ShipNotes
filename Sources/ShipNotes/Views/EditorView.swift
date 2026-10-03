@@ -91,8 +91,11 @@ struct EditorView: View {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(note.validationIssues) { issue in
                     HStack(alignment: .top, spacing: 6) {
-                        Image(systemName: issue.severity == .error ? "xmark.octagon.fill" : "exclamationmark.triangle.fill")
-                            .foregroundStyle(issue.severity == .error ? Color.red : .orange)
+                        Image(
+                            systemName: issue.severity == .error
+                                ? "xmark.octagon.fill" : "exclamationmark.triangle.fill"
+                        )
+                        .foregroundStyle(issue.severity == .error ? Color.red : .orange)
                         Text(issue.message)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -114,6 +117,5 @@ struct EditorView: View {
             .padding(.top, 2)
         }
     }
-
 
 }

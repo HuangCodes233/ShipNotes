@@ -10,35 +10,35 @@ struct StoreCopyParserTests {
         let folder = try makeTempFolder()
         let url = folder.appending(path: "en.md")
         let markdown = """
-        # Demo App Store Metadata
+            # Demo App Store Metadata
 
-        ## 1. App Name
-        ```
-        Demo App
-        ```
+            ## 1. App Name
+            ```
+            Demo App
+            ```
 
-        ## 5. Description
-        **Limit: 4000 characters**
+            ## 5. Description
+            **Limit: 4000 characters**
 
-        ```
-        A focused app for shipping App Store updates.
-        ```
+            ```
+            A focused app for shipping App Store updates.
+            ```
 
-        ## 6. Keywords
-        ```
-        app store,release,metadata
-        ```
+            ## 6. Keywords
+            ```
+            app store,release,metadata
+            ```
 
-        ## 7. Promotional Text
-        ```
-        Ship a cleaner update today.
-        ```
+            ## 7. Promotional Text
+            ```
+            Ship a cleaner update today.
+            ```
 
-        ## Support URL
-        ```
-        https://example.com/support
-        ```
-        """
+            ## Support URL
+            ```
+            https://example.com/support
+            ```
+            """
         try markdown.write(to: url, atomically: true, encoding: .utf8)
 
         let parsed = try parser.parse(url: url)
@@ -89,20 +89,20 @@ struct StoreCopyParserTests {
         let folder = try makeTempFolder()
         let url = folder.appending(path: "store-copy.json")
         let json = """
-        {
-          "locales": {
-            "en-US": {
-              "description": "English description.",
-              "keywords": "ship,notes",
-              "promotionalText": "New polish."
-            },
-            "zh-CN": {
-              "description": "中文描述。",
-              "keywords": "发布,商店"
+            {
+              "locales": {
+                "en-US": {
+                  "description": "English description.",
+                  "keywords": "ship,notes",
+                  "promotionalText": "New polish."
+                },
+                "zh-CN": {
+                  "description": "中文描述。",
+                  "keywords": "发布,商店"
+                }
+              }
             }
-          }
-        }
-        """
+            """
         try json.write(to: url, atomically: true, encoding: .utf8)
 
         let parsed = try parser.parse(url: url)
@@ -116,17 +116,17 @@ struct StoreCopyParserTests {
         let folder = try makeTempFolder()
         let url = folder.appending(path: "v1.9 Keywords.txt")
         let text = """
-        ========== v1.9 Keywords ==========
+            ========== v1.9 Keywords ==========
 
-        --- 日本語 (ja) --- [99 chars]
-        ふりがな,漢字,読み方,JLPT
+            --- 日本語 (ja) --- [99 chars]
+            ふりがな,漢字,読み方,JLPT
 
-        --- English (en) --- [100 chars]
-        furigana,kanji,hiragana,JLPT
+            --- English (en) --- [100 chars]
+            furigana,kanji,hiragana,JLPT
 
-        --- 简体中文 (zh-Hans) --- [98 chars]
-        假名,日语,汉字,读音
-        """
+            --- 简体中文 (zh-Hans) --- [98 chars]
+            假名,日语,汉字,读音
+            """
         try text.write(to: url, atomically: true, encoding: .utf8)
 
         let parsed = try parser.parse(url: folder, defaultLocale: "en-AU")
@@ -141,19 +141,19 @@ struct StoreCopyParserTests {
         let folder = try makeTempFolder()
         let mdURL = folder.appending(path: "en.md")
         let markdown = """
-        ## Subtitle
-        ```
-        Fast, offline Markdown notes
-        ```
-        ## Description
-        ```
-        The best app for writing notes on Mac.
-        ```
-        ## Privacy Policy URL
-        ```
-        https://example.com/privacy-policy
-        ```
-        """
+            ## Subtitle
+            ```
+            Fast, offline Markdown notes
+            ```
+            ## Description
+            ```
+            The best app for writing notes on Mac.
+            ```
+            ## Privacy Policy URL
+            ```
+            https://example.com/privacy-policy
+            ```
+            """
         try markdown.write(to: mdURL, atomically: true, encoding: .utf8)
         let parsedMD = try parser.parse(url: mdURL)
         #expect(parsedMD.locales["en-US"]?.subtitle == "Fast, offline Markdown notes")
@@ -162,12 +162,12 @@ struct StoreCopyParserTests {
 
         let yamlURL = folder.appending(path: "copy.yaml")
         let yaml = """
-        locales:
-          zh-Hans:
-            subtitle: 简洁高效的发布说明助手
-            description: 快速同步多语言发布文案
-            privacyPolicyURL: https://example.com/zh/privacy
-        """
+            locales:
+              zh-Hans:
+                subtitle: 简洁高效的发布说明助手
+                description: 快速同步多语言发布文案
+                privacyPolicyURL: https://example.com/zh/privacy
+            """
         try yaml.write(to: yamlURL, atomically: true, encoding: .utf8)
         let parsedYAML = try parser.parse(url: yamlURL)
         #expect(parsedYAML.locales["zh-Hans"]?.subtitle == "简洁高效的发布说明助手")
@@ -183,9 +183,12 @@ struct StoreCopyParserTests {
         try FileManager.default.createDirectory(at: zhFolder, withIntermediateDirectories: true)
 
         try "Fastlane Subtitle".write(to: enFolder.appending(path: "subtitle.txt"), atomically: true, encoding: .utf8)
-        try "Fastlane Description".write(to: enFolder.appending(path: "description.txt"), atomically: true, encoding: .utf8)
-        try "fastlane,metadata,app".write(to: enFolder.appending(path: "keywords.txt"), atomically: true, encoding: .utf8)
-        try "https://example.com/privacy".write(to: enFolder.appending(path: "privacy_url.txt"), atomically: true, encoding: .utf8)
+        try "Fastlane Description".write(
+            to: enFolder.appending(path: "description.txt"), atomically: true, encoding: .utf8)
+        try "fastlane,metadata,app".write(
+            to: enFolder.appending(path: "keywords.txt"), atomically: true, encoding: .utf8)
+        try "https://example.com/privacy".write(
+            to: enFolder.appending(path: "privacy_url.txt"), atomically: true, encoding: .utf8)
 
         try "中文副标题".write(to: zhFolder.appending(path: "subtitle.txt"), atomically: true, encoding: .utf8)
         try "中文应用描述".write(to: zhFolder.appending(path: "description.txt"), atomically: true, encoding: .utf8)
@@ -204,13 +207,13 @@ struct StoreCopyParserTests {
         let folder = try makeTempFolder()
         let url = folder.appending(path: "ScreenshotTitleCopy.txt")
         let text = """
-        ========== v3.x Screenshot Title Copy ==========
+            ========== v3.x Screenshot Title Copy ==========
 
-        --- Screenshot 1: Hero / Furigana ---
-        日本語: 漢字に瞬時ふりがな
-        English: Instant Furigana
-        简体中文: 汉字瞬间标音
-        """
+            --- Screenshot 1: Hero / Furigana ---
+            日本語: 漢字に瞬時ふりがな
+            English: Instant Furigana
+            简体中文: 汉字瞬间标音
+            """
         try text.write(to: url, atomically: true, encoding: .utf8)
 
         #expect(throws: StoreCopyParserError.self) {

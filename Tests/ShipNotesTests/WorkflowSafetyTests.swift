@@ -18,11 +18,13 @@ struct WorkflowSafetyTests {
         )
         state.apps = [
             AppRecord(id: "app-1", name: "Demo", bundleId: "x", platform: "iOS", iconSystemName: "app"),
-            AppRecord(id: "app-2", name: "Other", bundleId: "y", platform: "iOS", iconSystemName: "app")
+            AppRecord(id: "app-2", name: "Other", bundleId: "y", platform: "iOS", iconSystemName: "app"),
         ]
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission),
-            ReleaseVersion(id: "v-2", appId: "app-1", versionString: "2.0", platform: "iOS", appStoreState: .prepareForSubmission)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .prepareForSubmission),
+            ReleaseVersion(
+                id: "v-2", appId: "app-1", versionString: "2.0", platform: "iOS", appStoreState: .prepareForSubmission),
         ]
         state.selectedAppId = "app-1"
         state.selectedVersionId = "v-1"
@@ -53,7 +55,9 @@ struct WorkflowSafetyTests {
         let state = makeLiveState(service: service)
         state.selectedVersionId = "v-2"
         state.localeNotes = [
-            LocaleNote(locale: "de-DE", remoteLocalizationId: "loc-de-v2", localText: "v2", remoteText: "v2", status: .noChange, diffSummary: nil)
+            LocaleNote(
+                locale: "de-DE", remoteLocalizationId: "loc-de-v2", localText: "v2", remoteText: "v2",
+                status: .noChange, diffSummary: nil)
         ]
 
         let id = try await state.ensureLocalizationId(for: "de-DE", versionId: "v-1", service: service)
@@ -82,7 +86,10 @@ struct WorkflowSafetyTests {
                 ScreenshotReplacementLocalePlan(
                     locale: "en-US",
                     localizationId: "loc-en-v1",
-                    slots: [ScreenshotReplacementSlotPlan(slot: .iPhone65, remoteScreenshots: [], localAssets: [phoneAsset(locale: "en-US")])]
+                    slots: [
+                        ScreenshotReplacementSlotPlan(
+                            slot: .iPhone65, remoteScreenshots: [], localAssets: [phoneAsset(locale: "en-US")])
+                    ]
                 )
             ],
             appId: "app-1",
@@ -93,14 +100,18 @@ struct WorkflowSafetyTests {
         await state.uploadScreenshotReplacementPlan(plan)
 
         #expect(service.replacedScreenshots.isEmpty)
-        #expect(state.lastError?.message == expectedLocalized("The selected version changed. Preview the screenshot upload again."))
+        #expect(
+            state.lastError?.message
+                == expectedLocalized("The selected version changed. Preview the screenshot upload again."))
     }
 
     @Test func uploadUsesThePlannedLocalizationAndRecordsThePlannedVersion() async {
         let service = MockASCService()
         let state = makeLiveState(service: service)
         state.localeNotes = [
-            LocaleNote(locale: "en-US", remoteLocalizationId: "loc-en-live", localText: "a", remoteText: "a", status: .noChange, diffSummary: nil)
+            LocaleNote(
+                locale: "en-US", remoteLocalizationId: "loc-en-live", localText: "a", remoteText: "a",
+                status: .noChange, diffSummary: nil)
         ]
         state.screenshotScan = scan([phoneAsset(locale: "en-US")])
         let plan = ScreenshotReplacementPlan(
@@ -108,7 +119,10 @@ struct WorkflowSafetyTests {
                 ScreenshotReplacementLocalePlan(
                     locale: "en-US",
                     localizationId: "loc-en-planned",
-                    slots: [ScreenshotReplacementSlotPlan(slot: .iPhone65, remoteScreenshots: [], localAssets: [phoneAsset(locale: "en-US")])]
+                    slots: [
+                        ScreenshotReplacementSlotPlan(
+                            slot: .iPhone65, remoteScreenshots: [], localAssets: [phoneAsset(locale: "en-US")])
+                    ]
                 )
             ],
             appId: "app-1",
@@ -127,7 +141,9 @@ struct WorkflowSafetyTests {
         service.fetchScreenshotSetDelayNanoseconds["loc-en"] = 200_000_000
         let state = makeLiveState(service: service)
         state.localeNotes = [
-            LocaleNote(locale: "en-US", remoteLocalizationId: "loc-en", localText: "a", remoteText: "a", status: .noChange, diffSummary: nil)
+            LocaleNote(
+                locale: "en-US", remoteLocalizationId: "loc-en", localText: "a", remoteText: "a", status: .noChange,
+                diffSummary: nil)
         ]
         state.screenshotScan = scan([phoneAsset(locale: "en-US")])
 
@@ -144,8 +160,12 @@ struct WorkflowSafetyTests {
         let service = MockASCService()
         let state = makeLiveState(service: service)
         state.localeNotes = [
-            LocaleNote(locale: "en-US", remoteLocalizationId: "loc-en", localText: "a", remoteText: "a", status: .noChange, diffSummary: nil),
-            LocaleNote(locale: "de-DE", remoteLocalizationId: "loc-de", localText: "b", remoteText: "b", status: .noChange, diffSummary: nil)
+            LocaleNote(
+                locale: "en-US", remoteLocalizationId: "loc-en", localText: "a", remoteText: "a", status: .noChange,
+                diffSummary: nil),
+            LocaleNote(
+                locale: "de-DE", remoteLocalizationId: "loc-de", localText: "b", remoteText: "b", status: .noChange,
+                diffSummary: nil),
         ]
         state.screenshotScan = scan([phoneAsset(locale: "en-US"), phoneAsset(locale: "de-DE")])
 
@@ -189,16 +209,20 @@ struct WorkflowSafetyTests {
         service.updateWhatsNewError = AppStoreConnectClientError.requestFailed(statusCode: 500, message: "boom")
         let state = makeLiveState(service: service)
         state.localeNotes = [
-            LocaleNote(locale: "de-DE", remoteLocalizationId: "loc-de", localText: "Neu", remoteText: "Alt", status: .ready, diffSummary: nil)
+            LocaleNote(
+                locale: "de-DE", remoteLocalizationId: "loc-de", localText: "Neu", remoteText: "Alt", status: .ready,
+                diffSummary: nil)
         ]
 
         let submitted = await state.submitSelectedVersionForReview(releaseType: nil)
 
         #expect(!submitted)
         #expect(!service.submitForReviewCalled)
-        #expect(state.lastError?.message == expectedLocalized(
-            "Some release notes could not be synced to App Store Connect. Fix the failed locales, then submit again."
-        ))
+        #expect(
+            state.lastError?.message
+                == expectedLocalized(
+                    "Some release notes could not be synced to App Store Connect. Fix the failed locales, then submit again."
+                ))
     }
 
     @Test func submitClearsAStaleErrorAndReportsSuccess() async {
@@ -220,7 +244,9 @@ struct WorkflowSafetyTests {
         service.updateWhatsNewDelayNanoseconds = 300_000_000
         let state = makeLiveState(service: service)
         state.localeNotes = [
-            LocaleNote(locale: "de-DE", remoteLocalizationId: "loc-de", localText: "Neu", remoteText: "Alt", status: .ready, diffSummary: nil)
+            LocaleNote(
+                locale: "de-DE", remoteLocalizationId: "loc-de", localText: "Neu", remoteText: "Alt", status: .ready,
+                diffSummary: nil)
         ]
         #expect(state.canPerformSyncCommand)
         #expect(state.canPerformDryRunCommand)
@@ -238,7 +264,8 @@ struct WorkflowSafetyTests {
         #expect(state.localeNotes.first?.status == .synced)
 
         state.versionsByApp["app-1"] = [
-            ReleaseVersion(id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .readyForSale)
+            ReleaseVersion(
+                id: "v-1", appId: "app-1", versionString: "1.0", platform: "iOS", appStoreState: .readyForSale)
         ]
         state.localeNotes[0].localText = "Noch neuer"
         state.localeNotes[0].status = .ready
@@ -294,7 +321,9 @@ struct ScreenshotAIMatchingTests {
             defaults: makeTestDefaults()
         )
         state.localeNotes = locales.map {
-            LocaleNote(locale: $0, remoteLocalizationId: nil, localText: "x", remoteText: "x", status: .noChange, diffSummary: nil)
+            LocaleNote(
+                locale: $0, remoteLocalizationId: nil, localText: "x", remoteText: "x", status: .noChange,
+                diffSummary: nil)
         }
         return state
     }
@@ -348,8 +377,10 @@ struct ScreenshotAIMatchingTests {
         #expect(vision.calls.map(\.count) == [12, 1])
         #expect(state.screenshotAILocaleOverrides.count == 10)  // at most 10 per slot
         #expect(state.lastError?.message.contains("batch failed") == true)
-        #expect(state.screenshotUploadSummary == expectedLocalized(
-            "AI matched %d screenshot(s). Review the locale coverage before previewing upload.", 10
-        ))
+        #expect(
+            state.screenshotUploadSummary
+                == expectedLocalized(
+                    "AI matched %d screenshot(s). Review the locale coverage before previewing upload.", 10
+                ))
     }
 }

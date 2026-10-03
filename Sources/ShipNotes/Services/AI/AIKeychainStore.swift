@@ -41,7 +41,7 @@ struct AIKeychainStore: AIKeychainStoring {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: Self.service,
-            kSecAttrAccount as String: provider.keychainAccount(for: role)
+            kSecAttrAccount as String: provider.keychainAccount(for: role),
         ]
 
         // Replace if present
@@ -72,7 +72,7 @@ struct AIKeychainStore: AIKeychainStoring {
         )
         query.merge([
             kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
+            kSecMatchLimit as String: kSecMatchLimitOne,
         ]) { _, new in new }
         if !allowsAuthenticationUI {
             query[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUISkip
@@ -97,7 +97,7 @@ struct AIKeychainStore: AIKeychainStoring {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
         ]
     }
 

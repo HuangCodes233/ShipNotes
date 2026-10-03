@@ -20,7 +20,7 @@ extension AppleAdsClient {
         let body = AppleAdsQueryBody(
             filters: [
                 .init(field: "promotedObjectType", operator: "EQUALS", value: .string("APPSTORE_APP")),
-                .init(field: "promotedObjectId", operator: "EQUALS", value: .string(adamId))
+                .init(field: "promotedObjectId", operator: "EQUALS", value: .string(adamId)),
             ],
             pagination: .init(offset: 0, pageSize: 100),
             sorting: nil,
@@ -59,13 +59,14 @@ extension AppleAdsClient {
                 filters: [
                     .init(field: "adamId", operator: "EQUALS", value: filterValue(adamId)),
                     .init(field: "supplyPlacement", operator: "EQUALS", value: .string("APPSTORE_SEARCH_RESULTS")),
-                    .init(field: "countryOrRegion", operator: "EQUALS", value: .string(country))
+                    .init(field: "countryOrRegion", operator: "EQUALS", value: .string(country)),
                 ],
                 pagination: .init(offset: 0, pageSize: 1000),
                 sorting: nil,
                 timeRange: nil
             )
-            let list = try await post(AppleAdsListResult<AdsEligibilityDTO>.self, path: "eligibilities/apps/query", body: body)
+            let list = try await post(
+                AppleAdsListResult<AdsEligibilityDTO>.self, path: "eligibilities/apps/query", body: body)
             guard !list.extracted.isEmpty else { throw AppleAdsClientError.invalidResponse }
             if let blocked = list.extracted.first(where: { !$0.asModel(adamId: adamId).isEligible }) {
                 return blocked.asModel(adamId: adamId)
@@ -81,7 +82,11 @@ extension AppleAdsClient {
 
     func createSearchResultsCampaign(_ request: AppleAdsPromoteRequest) async throws -> AppleAdsCampaign {
         guard AppleAdsPromoteRequest.validAmounts(budget: request.dailyBudget, bid: request.defaultBid) else {
-            throw AppleAdsClientError.requestFailed(statusCode: 400, message: "Budget and bid must be positive amounts with at most two decimal places; bid must not exceed budget.")
+            throw AppleAdsClientError.requestFailed(
+                statusCode: 400,
+                message:
+                    "Budget and bid must be positive amounts with at most two decimal places; bid must not exceed budget."
+            )
         }
         let createBody = AdsCampaignCreateBody(
             name: request.name,
@@ -101,53 +106,58 @@ extension AppleAdsClient {
 
         do {
 
-        let adGroupBody = AdsAdGroupCreateBody(
-            campaignId: Int64(campaign.id),
-            name: request.name,
-            pricingModel: "CPT",
-            bidStrategy: AdsBidStrategyBody(
-                bidStrategyType: "MANUAL_CPT",
-                bidStrategyGoal: "TAP",
-                bid: AdsMoneyDTO(amount: request.defaultBid, currency: request.currency)
-            ),
-            status: "ENABLED"
-        )
-        let adGroup = try await post(AdsAdGroupDTO.self, path: "adgroups", body: adGroupBody)
-
-        if !request.keywords.isEmpty, let adGroupId = adGroup.id?.value {
-            _ = try await bulkCreateKeywords(
-                adGroupId: adGroupId,
-                keywords: request.keywords
-            )
-        }
-
-        let creativeBody = AdsCreativeCreateBody(
-            name: "\(request.name) — Default Product Page",
-            creativeType: "DEFAULT_PRODUCT_PAGE",
-            creativeSpec: [:],
-            destination: AdsCreativeDestination(
-                destinationType: "APP_STORE_PRODUCT_PAGE",
-                parameters: ["adamId": request.adamId]
-            )
-        )
-        let creative = try await post(AdsCreativeDTO.self, path: "creatives", body: creativeBody)
-        if let creativeId = creative.id?.value,
-           let adGroupId = adGroup.id?.value {
-            let adBody = AdsAdCreateBody(
-                adGroupId: Int64(adGroupId),
-                creativeId: Int64(creativeId),
-                name: "Default Search Ad",
+            let adGroupBody = AdsAdGroupCreateBody(
+                campaignId: Int64(campaign.id),
+                name: request.name,
+                pricingModel: "CPT",
+                bidStrategy: AdsBidStrategyBody(
+                    bidStrategyType: "MANUAL_CPT",
+                    bidStrategyGoal: "TAP",
+                    bid: AdsMoneyDTO(amount: request.defaultBid, currency: request.currency)
+                ),
                 status: "ENABLED"
             )
-            _ = try await post(AdsAdDTO.self, path: "ads", body: adBody)
-        } else {
-            throw AppleAdsClientError.invalidResponse
-        }
+            let adGroup = try await post(AdsAdGroupDTO.self, path: "adgroups", body: adGroupBody)
 
-        // Explicitly leave a completed campaign paused for the user to enable.
-        return campaign
+            if !request.keywords.isEmpty, let adGroupId = adGroup.id?.value {
+                _ = try await bulkCreateKeywords(
+                    adGroupId: adGroupId,
+                    keywords: request.keywords
+                )
+            }
+
+            let creativeBody = AdsCreativeCreateBody(
+                name: "\(request.name) — Default Product Page",
+                creativeType: "DEFAULT_PRODUCT_PAGE",
+                creativeSpec: [:],
+                destination: AdsCreativeDestination(
+                    destinationType: "APP_STORE_PRODUCT_PAGE",
+                    parameters: ["adamId": request.adamId]
+                )
+            )
+            let creative = try await post(AdsCreativeDTO.self, path: "creatives", body: creativeBody)
+            if let creativeId = creative.id?.value,
+                let adGroupId = adGroup.id?.value
+            {
+                let adBody = AdsAdCreateBody(
+                    adGroupId: Int64(adGroupId),
+                    creativeId: Int64(creativeId),
+                    name: "Default Search Ad",
+                    status: "ENABLED"
+                )
+                _ = try await post(AdsAdDTO.self, path: "ads", body: adBody)
+            } else {
+                throw AppleAdsClientError.invalidResponse
+            }
+
+            // Explicitly leave a completed campaign paused for the user to enable.
+            return campaign
         } catch {
-            throw AppleAdsClientError.requestFailed(statusCode: 409, message: "Campaign \(campaign.id) was created paused, but setup is incomplete: \(error.localizedDescription). Inspect it in Apple Ads before retrying.")
+            throw AppleAdsClientError.requestFailed(
+                statusCode: 409,
+                message:
+                    "Campaign \(campaign.id) was created paused, but setup is incomplete: \(error.localizedDescription). Inspect it in Apple Ads before retrying."
+            )
         }
     }
 }
@@ -179,15 +189,17 @@ struct AdsACLDTO: Decodable {
 
     var asModel: AppleAdsACL {
         let nested = adAccount ?? account
-        let account = nested?.asModel ?? AppleAdsAccount(
-            id: nested?.id?.value ?? adAccountId?.value ?? id?.value ?? orgId?.value ?? "",
-            name: name ?? orgName ?? L("Apple Ads"),
-            orgId: orgId?.value,
-            currency: currency ?? "USD",
-            timeZone: timeZone,
-            productFeatures: productFeatures ?? [],
-            hasContentProviderDelegation: delegations?.contains { $0.type == "CONTENT_PROVIDER" } == true
-        )
+        let account =
+            nested?.asModel
+            ?? AppleAdsAccount(
+                id: nested?.id?.value ?? adAccountId?.value ?? id?.value ?? orgId?.value ?? "",
+                name: name ?? orgName ?? L("Apple Ads"),
+                orgId: orgId?.value,
+                currency: currency ?? "USD",
+                timeZone: timeZone,
+                productFeatures: productFeatures ?? [],
+                hasContentProviderDelegation: delegations?.contains { $0.type == "CONTENT_PROVIDER" } == true
+            )
         return AppleAdsACL(roles: roles ?? roleNames ?? [], account: account)
     }
 }

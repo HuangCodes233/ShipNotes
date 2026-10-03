@@ -80,18 +80,22 @@ final class MockASCService: AppStoreConnectServicing, @unchecked Sendable {
             storeMetadata: returned
         )
     }
-    func updateStoreMetadataField(localizationId: String, field: StoreCopyField, value: String) async throws -> RemoteLocaleNote {
+    func updateStoreMetadataField(
+        localizationId: String, field: StoreCopyField, value: String
+    ) async throws -> RemoteLocaleNote {
         if let updateStoreMetadataFieldError {
             throw updateStoreMetadataFieldError
         }
         lastUpdatedStoreMetadataField = (field, value)
-        var metadata = lastUpdatedStoreMetadata ?? StoreMetadataFields(
-            description: "Remote description",
-            keywords: "remote,keywords",
-            promotionalText: "Remote promo",
-            supportURL: "https://example.com/support",
-            marketingURL: "https://example.com"
-        )
+        var metadata =
+            lastUpdatedStoreMetadata
+            ?? StoreMetadataFields(
+                description: "Remote description",
+                keywords: "remote,keywords",
+                promotionalText: "Remote promo",
+                supportURL: "https://example.com/support",
+                marketingURL: "https://example.com"
+            )
         metadata.setValue(value, for: field)
         lastUpdatedStoreMetadata = metadata
         let remote = fetchedLocalizations.first { $0.localizationId == localizationId }
@@ -110,8 +114,9 @@ final class MockASCService: AppStoreConnectServicing, @unchecked Sendable {
         return RemoteLocaleNote(localizationId: "loc-\(UUID().uuidString)", locale: locale, text: text)
     }
     func createVersion(appId: String, versionString: String, platform: String) async throws -> ReleaseVersion {
-        ReleaseVersion(id: "new-v", appId: appId, versionString: versionString,
-                       platform: "iOS", appStoreState: .prepareForSubmission)
+        ReleaseVersion(
+            id: "new-v", appId: appId, versionString: versionString,
+            platform: "iOS", appStoreState: .prepareForSubmission)
     }
     func fetchBuilds(appId: String, marketingVersion: String) async throws -> [Build] { builds }
     func fetchAllBuilds(appId: String) async throws -> [Build] {
@@ -138,15 +143,18 @@ final class MockASCService: AppStoreConnectServicing, @unchecked Sendable {
     func updateVersion(versionId: String, releaseType: String?) async throws {
         lastReleaseType = releaseType
     }
-    func replaceScreenshots(localizationId: String, displayType: String, files: [URL], onProgress: (@Sendable (Int, Int, String) -> Void)?) async throws -> Int {
+    func replaceScreenshots(
+        localizationId: String, displayType: String, files: [URL], onProgress: (@Sendable (Int, Int, String) -> Void)?
+    ) async throws -> Int {
         if let replaceScreenshotsError {
             throw replaceScreenshotsError
         }
-        replacedScreenshots.append((
-            localizationId: localizationId,
-            displayType: displayType,
-            fileNames: files.map(\.lastPathComponent)
-        ))
+        replacedScreenshots.append(
+            (
+                localizationId: localizationId,
+                displayType: displayType,
+                fileNames: files.map(\.lastPathComponent)
+            ))
         for (index, file) in files.enumerated() {
             onProgress?(index, files.count, file.lastPathComponent)
         }
@@ -220,7 +228,9 @@ final class MockAIService: AIService, @unchecked Sendable {
     var lastParseText: String?
     var isConfigured: Bool { true }
 
-    func parseReleaseNotes(text: String, currentVersion: String?, knownRemoteLocales: [String]) async throws -> [String: String] {
+    func parseReleaseNotes(
+        text: String, currentVersion: String?, knownRemoteLocales: [String]
+    ) async throws -> [String: String] {
         if parseDelayNanoseconds > 0 {
             try await Task.sleep(nanoseconds: parseDelayNanoseconds)
         }
@@ -229,7 +239,9 @@ final class MockAIService: AIService, @unchecked Sendable {
     }
     var translateDelayNanoseconds: UInt64 = 0
 
-    func translate(text: String, fromLocale: String, toLocale: String, glossary: [String: String]) async throws -> String {
+    func translate(
+        text: String, fromLocale: String, toLocale: String, glossary: [String: String]
+    ) async throws -> String {
         if let translateError {
             throw translateError
         }

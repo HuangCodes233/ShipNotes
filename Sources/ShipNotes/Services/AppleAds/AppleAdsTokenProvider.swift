@@ -48,8 +48,9 @@ actor AppleAdsTokenProvider: Sendable {
 
     func accessToken(now: Date = Date()) async throws -> String {
         if let token = cachedAccessToken,
-           let exp = accessTokenExpiration,
-           exp.timeIntervalSince(now) > 60 {
+            let exp = accessTokenExpiration,
+            exp.timeIntervalSince(now) > 60
+        {
             return token
         }
 
@@ -63,7 +64,7 @@ actor AppleAdsTokenProvider: Sendable {
             "grant_type=client_credentials",
             "client_id=\(urlEncoded(creds.clientId))",
             "client_secret=\(urlEncoded(secret))",
-            "scope=searchadsorg"
+            "scope=searchadsorg",
         ].joined(separator: "&")
         request.httpBody = Data(body.utf8)
 

@@ -4,8 +4,9 @@ import Testing
 
 /// Opt in with SHIPNOTES_BENCHMARKS=1 swift test -c release --filter RuntimePerformanceTests.
 /// Reports timings without machine-dependent pass/fail thresholds.
-@Suite("Runtime performance", .serialized,
-       .enabled(if: ProcessInfo.processInfo.environment["SHIPNOTES_BENCHMARKS"] == "1"))
+@Suite(
+    "Runtime performance", .serialized,
+    .enabled(if: ProcessInfo.processInfo.environment["SHIPNOTES_BENCHMARKS"] == "1"))
 struct RuntimePerformanceTests {
     @Test func diffSummaryWhileEditing() {
         let lines = (0..<400).map { "Line \($0)" }
@@ -27,7 +28,7 @@ struct RuntimePerformanceTests {
     @Test func appStoreDateParsing() {
         let strings = [
             "2026-05-19T18:01:23Z", "2026-05-19T18:01:23.456Z",
-            "2026-05-19T18:01:23+00:00", "2026-05-19T18:01:23.456+00:00"
+            "2026-05-19T18:01:23+00:00", "2026-05-19T18:01:23.456+00:00",
         ]
         measure("date-parse-500-values") {
             var parsed = 0
@@ -42,11 +43,14 @@ struct RuntimePerformanceTests {
 
     @MainActor @Test func screenshotCoverageReads() {
         let state = AppState(aiKeychainStore: InMemoryAIKeychainStore(), defaults: makeTestDefaults())
-        let locales = ["en-US", "en-AU", "en-GB", "en-CA", "fr-FR", "fr-CA",
-                       "es-ES", "es-MX", "pt-BR", "pt-PT", "ja", "ko"]
+        let locales = [
+            "en-US", "en-AU", "en-GB", "en-CA", "fr-FR", "fr-CA",
+            "es-ES", "es-MX", "pt-BR", "pt-PT", "ja", "ko",
+        ]
         state.localeNotes = locales.map {
-            LocaleNote(locale: $0, remoteLocalizationId: nil, localText: "Ready",
-                       remoteText: "Ready", status: .noChange, diffSummary: nil)
+            LocaleNote(
+                locale: $0, remoteLocalizationId: nil, localText: "Ready",
+                remoteText: "Ready", status: .noChange, diffSummary: nil)
         }
         let root = URL(fileURLWithPath: "/tmp/ShipNotes-performance-fixtures")
         let assets = locales.flatMap { locale in
@@ -60,8 +64,9 @@ struct RuntimePerformanceTests {
                 )
             }
         }
-        state.screenshotScan = ScreenshotScan(inputRoot: root, root: root,
-                                             sourceKind: .directFolder, assets: assets, skippedCount: 0)
+        state.screenshotScan = ScreenshotScan(
+            inputRoot: root, root: root,
+            sourceKind: .directFolder, assets: assets, skippedCount: 0)
         measure("screenshot-coverage-cold-120-assets") {
             state.screenshotCoverageGroupsCache = nil
             state.screenshotIssuesCache = nil
@@ -86,7 +91,7 @@ struct RuntimePerformanceTests {
     }
 
     private func measure(_ label: String, operation: () -> Void) {
-        operation() // Warm the code and any intentionally reusable resources.
+        operation()  // Warm the code and any intentionally reusable resources.
         var samples: [Double] = []
         for _ in 0..<5 {
             let start = DispatchTime.now().uptimeNanoseconds

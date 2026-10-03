@@ -16,8 +16,9 @@ enum HTTPRetryPolicy {
             do {
                 let (data, response) = try await session.data(for: request)
                 if let http = response as? HTTPURLResponse,
-                   attempt < maxRetries,
-                   shouldRetryHTTP(http.statusCode) {
+                    attempt < maxRetries,
+                    shouldRetryHTTP(http.statusCode)
+                {
                     attempt += 1
                     try await Task.sleep(for: .nanoseconds(retryDelayNanos(attempt: attempt, response: http)))
                     continue
@@ -57,9 +58,11 @@ enum HTTPRetryPolicy {
     private static func delaySeconds(from response: HTTPURLResponse) -> TimeInterval? {
         let headerNames = ["Retry-After", "RateLimit-Reset-After", "RateLimit-Reset"]
         for name in headerNames {
-            guard let raw = response.value(forHTTPHeaderField: name)?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-                  !raw.isEmpty else { continue }
+            guard
+                let raw = response.value(forHTTPHeaderField: name)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                !raw.isEmpty
+            else { continue }
             if let seconds = parseDelaySeconds(raw) {
                 return seconds
             }
