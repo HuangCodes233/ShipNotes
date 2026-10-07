@@ -2,6 +2,25 @@ import CryptoKit
 import Foundation
 import OSLog
 
+/// Injectable monotonic clock/sleep for deterministic processing tests.
+struct ScreenshotProcessingPolling: Sendable {
+    var timeout: Duration
+    var firstDelay: Duration
+    var maxDelay: Duration
+    var now: @Sendable () -> Duration
+    var sleep: @Sendable (Duration) async throws -> Void
+
+    static var live: Self {
+        let clock = ContinuousClock()
+        let start = clock.now
+        return Self(
+            timeout: .seconds(90), firstDelay: .seconds(2), maxDelay: .seconds(8),
+            now: { start.duration(to: clock.now) },
+            sleep: { try await Task.sleep(for: $0) }
+        )
+    }
+}
+
 // Screenshot set fetch, multipart upload, and replacement.
 extension AppStoreConnectClient {
     func replaceScreenshots(
@@ -9,6 +28,7 @@ extension AppStoreConnectClient {
         onProgress: (@Sendable (Int, Int, String) -> Void)? = nil
     ) async throws -> Int {
         guard !files.isEmpty else { return 0 }
+        try Task.checkCancellation()
         // Fail before ANY destructive change if the batch can't fit in one
         // set — a mid-upload discovery would leave a partial replacement.
         guard files.count <= Self.maxScreenshotsPerSet else {
@@ -40,14 +60,16 @@ extension AppStoreConnectClient {
         )
 
         for screenshot in oldScreenshots {
+            try Task.checkCancellation()
             try await deleteResource(path: "appScreenshots/\(screenshot.id)")
         }
         if !oldScreenshots.isEmpty {
             try await waitForEmptyScreenshotSet(setId: set.id)
         }
 
-        var uploaded: [(id: String, fileName: String)] = []
+        var uploaded: [ScreenshotProcessingReservation.UploadedFile] = []
         for (index, fileURL) in files.enumerated() {
+            try Task.checkCancellation()
             let fileName = fileURL.lastPathComponent
             let data = try await Self.readFile(fileURL)
 
@@ -64,30 +86,18 @@ extension AppStoreConnectClient {
                 await discardScreenshot(id: created.id)
                 throw error
             }
-            uploaded.append((created.id, fileName))
+            uploaded.append(.init(id: created.id, fileName: fileName))
             onProgress?(index, files.count, fileName)
         }
 
         // `uploaded: true` only starts Apple's processing. A file rejected at
         // this stage (alpha channel, corrupt image, wrong size) would leave a
         // broken asset behind while we report success, so check the result.
-        let failures = try await waitForScreenshotProcessing(uploaded, setId: set.id)
-        if !failures.isEmpty {
-            for failure in failures {
-                await discardScreenshot(id: failure.id)
-            }
-            let details = failures.map { "\($0.fileName): \($0.reason)" }.joined(separator: "\n")
-            throw AppStoreConnectClientError.screenshotProcessingFailed(details)
-        }
-
-        let uploadedIDs = uploaded.map(\.id)
-        if uploadedIDs.count > 1 {
-            try await patchRelationship(
-                path: "appScreenshotSets/\(set.id)/relationships/appScreenshots",
-                body: ASCAppScreenshotOrderRequest(ids: uploadedIDs)
-            )
-        }
-        return uploadedIDs.count
+        return try await finishScreenshotProcessing(
+            .init(
+                localizationId: localizationId, displayType: displayType,
+                setId: set.id, uploaded: uploaded
+            ), polling: .live, removesRejectedUploads: true)
     }
 
     /// A successful DELETE may precede the collection reflecting that change.
@@ -105,30 +115,83 @@ extension AppStoreConnectClient {
         throw AppStoreConnectClientError.screenshotDeletionNotConfirmed
     }
 
-    static let screenshotProcessingFirstPollDelay: Duration = .seconds(2)
-    static let screenshotProcessingMaxPollDelay: Duration = .seconds(8)
-    static let screenshotProcessingTimeout: Duration = .seconds(90)
+    func resumeScreenshotProcessing(_ reservation: ScreenshotProcessingReservation) async throws -> Int {
+        try await resumeScreenshotProcessing(reservation, polling: .live)
+    }
 
-    /// Polls the set until Apple reports COMPLETE or FAILED for every
-    /// uploaded screenshot, and returns the failed ones. One request per round
-    /// covers the whole set (per-screenshot polling multiplied requests
-    /// against App Store Connect's hourly limit), with growing delays. A
-    /// screenshot still processing when the time limit is reached is not
-    /// treated as failed: Apple finishes it later, and blocking the whole
-    /// upload on a slow queue would be worse.
+    /// Timeout and an interrupted status read preserve the uploaded IDs. The
+    /// caller can resume these checks without performing a destructive replace.
+    func resumeScreenshotProcessing(
+        _ original: ScreenshotProcessingReservation,
+        polling: ScreenshotProcessingPolling
+    ) async throws -> Int {
+        try await finishScreenshotProcessing(original, polling: polling, removesRejectedUploads: false)
+    }
+
+    private func finishScreenshotProcessing(
+        _ original: ScreenshotProcessingReservation,
+        polling: ScreenshotProcessingPolling,
+        removesRejectedUploads: Bool
+    ) async throws -> Int {
+        var reservation = original
+        let outcome:
+            (
+                pending: [ScreenshotProcessingReservation.UploadedFile],
+                failures: [(id: String, fileName: String, reason: String)]
+            )
+        do {
+            outcome = try await waitForScreenshotProcessing(
+                reservation.uploaded, setId: reservation.setId, polling: polling)
+        } catch {
+            throw ScreenshotProcessingPendingError(reservation: reservation)
+        }
+        for failure in outcome.failures {
+            if removesRejectedUploads { await discardScreenshot(id: failure.id) }
+            reservation.failureDetails.append("\(failure.fileName): \(failure.reason)")
+        }
+        let failedIDs = Set(outcome.failures.map(\.id))
+        reservation.uploaded.removeAll { failedIDs.contains($0.id) }
+        guard outcome.pending.isEmpty else {
+            throw ScreenshotProcessingPendingError(reservation: reservation)
+        }
+        guard reservation.failureDetails.isEmpty else {
+            throw AppStoreConnectClientError.screenshotProcessingFailed(
+                reservation.failureDetails.joined(separator: "\n"))
+        }
+
+        let uploadedIDs = reservation.uploaded.map(\.id)
+        if uploadedIDs.count > 1 {
+            do {
+                try await patchRelationship(
+                    path: "appScreenshotSets/\(reservation.setId)/relationships/appScreenshots",
+                    body: ASCAppScreenshotOrderRequest(ids: uploadedIDs)
+                )
+            } catch {
+                throw ScreenshotProcessingPendingError(reservation: reservation)
+            }
+        }
+        return uploadedIDs.count
+    }
+
+    /// One set request per poll covers all uploaded screenshots. Every sleep
+    /// is capped by the remaining deadline; pending assets never mean success.
     func waitForScreenshotProcessing(
-        _ screenshots: [(id: String, fileName: String)],
-        setId: String
-    ) async throws -> [(id: String, fileName: String, reason: String)] {
+        _ screenshots: [ScreenshotProcessingReservation.UploadedFile],
+        setId: String,
+        polling: ScreenshotProcessingPolling = .live
+    ) async throws -> (
+        pending: [ScreenshotProcessingReservation.UploadedFile],
+        failures: [(id: String, fileName: String, reason: String)]
+    ) {
         var pending = screenshots
         var failures: [(id: String, fileName: String, reason: String)] = []
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: Self.screenshotProcessingTimeout)
-        var delay = Self.screenshotProcessingFirstPollDelay
+        let deadline = polling.now() + max(.zero, polling.timeout)
+        var delay = max(.milliseconds(1), polling.firstDelay)
 
         while !pending.isEmpty {
+            try Task.checkCancellation()
             let states = try await fetchScreenshotDeliveryStates(setId: setId)
-            var stillProcessing: [(id: String, fileName: String)] = []
+            var stillProcessing: [ScreenshotProcessingReservation.UploadedFile] = []
             for screenshot in pending {
                 let delivery = states[screenshot.id]
                 switch delivery?.state {
@@ -145,14 +208,16 @@ extension AppStoreConnectClient {
             }
             pending = stillProcessing
             guard !pending.isEmpty else { break }
-            guard clock.now < deadline else {
-                Logger.network.info("Screenshot processing still running after timeout; continuing.")
+            let remaining = deadline - polling.now()
+            guard remaining > .zero else {
+                Logger.network.info("Screenshot processing deadline reached; preserving pending uploads.")
                 break
             }
-            try await Task.sleep(for: delay)
-            delay = min(delay * 2, Self.screenshotProcessingMaxPollDelay)
+            try await polling.sleep(min(delay, remaining))
+            guard polling.now() < deadline else { break }
+            delay = min(delay * 2, max(.milliseconds(1), polling.maxDelay))
         }
-        return failures
+        return (pending, failures)
     }
 
     func fetchScreenshotDeliveryStates(setId: String) async throws -> [String: ASCAssetDeliveryState] {

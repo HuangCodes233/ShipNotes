@@ -23,6 +23,9 @@ struct ScreenshotWorkspaceView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     header
+                    if !state.currentPendingScreenshotProcessing.isEmpty {
+                        processingPanel
+                    }
                     sourceArea
                     if let scan = state.screenshotScan {
                         summary(
@@ -84,6 +87,33 @@ struct ScreenshotWorkspaceView: View {
                 ScreenshotReplacementPreviewSheet(plan: plan)
             }
         }
+    }
+
+    private var processingPanel: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "hourglass")
+                .foregroundStyle(.orange)
+            Text(
+                L(
+                    "Screenshots uploaded. Apple is still processing them. Check processing status before replacing this set again."
+                )
+            )
+            .font(.callout)
+            .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button {
+                Task { await state.checkPendingScreenshotProcessing() }
+            } label: {
+                if state.isCheckingScreenshotProcessing {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label(L("Check Processing"), systemImage: "arrow.clockwise")
+                }
+            }
+            .disabled(state.isCheckingScreenshotProcessing || state.isUploadingScreenshots)
+        }
+        .padding(12)
+        .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
     }
 
     private var header: some View {

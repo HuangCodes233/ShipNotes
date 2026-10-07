@@ -173,7 +173,7 @@ extension AppState {
                     return
                 }
                 self.updateLocalText(for: targetLocale, text: translated)
-                self.lastError = nil
+                self.clearLastErrorPreservingWorkspaceDraftError()
             } catch {
                 guard self.selectedAppId == requestedAppId,
                     self.selectedVersionId == requestedVersionId
@@ -228,8 +228,8 @@ extension AppState {
             )
             self.bumpAICallCount()
             self.clearPendingImport()
+            self.clearLastErrorPreservingWorkspaceDraftError()
             self.applyImportedReleaseNotes(parsed, sourceURL: url)
-            self.lastError = nil
         } catch {
             guard selectedAppId == requestedAppId,
                 selectedVersionId == requestedVersionId
@@ -284,6 +284,7 @@ extension AppState {
 
             switch outcome {
             case .parsed(let parsed):
+                clearLastErrorPreservingWorkspaceDraftError()
                 if parsed.requiresReview {
                     pendingImport = parsed
                     pendingImportURL = url
@@ -292,7 +293,6 @@ extension AppState {
                 } else {
                     applyImportedReleaseNotes(parsed, sourceURL: url)
                 }
-                lastError = nil
             case .versionNotFound:
                 handleError(ReleaseNotesParserError.versionNotFound(currentVersion ?? ""))
             case .suppressedScreenshotFolder:
@@ -445,6 +445,7 @@ extension AppState {
         guard let index = localeNotes.firstIndex(where: { $0.locale == locale }) else { return }
         localeNotes[index].localText = localeNotes[index].remoteText ?? ""
         recalculate(at: index)
+        scheduleWorkspaceDraftSave()
     }
 
     func copyLocalText(_ locale: String) {
@@ -467,6 +468,7 @@ extension AppState {
         guard let index = localeNotes.firstIndex(where: { $0.locale == locale }) else { return }
         localeNotes[index].localText = text
         recalculate(at: index)
+        scheduleWorkspaceDraftSave()
     }
 
     /// Shared by the bottom bar and the ⌘D menu command.
@@ -593,10 +595,13 @@ extension AppState {
     }
 
     func applyImportedReleaseNotes(_ parsed: ParsedReleaseNotes, sourceURL: URL?) {
+        saveCurrentWorkspaceDraft()
         let sourceChanged = sourceFolder != sourceURL
         sourceFolder = sourceURL
         sourceDescription = parsed.sourceDescription
         applyParsedLocales(parsed)
+        restoreCurrentWorkspaceDraft(afterSourceReload: true)
+        scheduleWorkspaceDraftSave()
         // Importing a *different* source moves an active watcher onto it. Never
         // touch the watcher when reloading the same folder: the watcher's own
         // callback arrives through this path (reloadFromSource → loadFolder),
@@ -735,12 +740,19 @@ extension AppState {
                     remoteNotesByLocale[locale] = remote
                     if let updatedIndex = localeNotes.firstIndex(where: { $0.locale == locale }) {
                         localeNotes[updatedIndex].remoteLocalizationId = remote.localizationId
-                        localeNotes[updatedIndex].localText = outgoing
+                        // Only normalize the text we sent if it is still the
+                        // current draft. A user can keep editing while PATCH
+                        // is in flight; its response must not undo those edits.
+                        if localeNotes[updatedIndex].localText == note.localText {
+                            localeNotes[updatedIndex].localText = outgoing
+                        }
                         localeNotes[updatedIndex].remoteText = remote.text
-                        localeNotes[updatedIndex].diffSummary = DiffSummary(
-                            added: 0, removed: 0, unchanged: outgoing.components(separatedBy: .newlines).count)
-                        localeNotes[updatedIndex].status = .synced
+                        recalculate(at: updatedIndex)
+                        if localeNotes[updatedIndex].localText == remote.text {
+                            localeNotes[updatedIndex].status = .synced
+                        }
                     }
+                    scheduleWorkspaceDraftSave()
                     results[locale] = .succeeded
                 } catch {
                     // A cancelled request is not a failure: don't paint the row
@@ -757,6 +769,12 @@ extension AppState {
                 }
             case .overLimit:
                 results[locale] = .failed(L("Over character limit"))
+            case .invalid:
+                results[locale] = .failed(
+                    note.validationIssues.first { $0.severity == .error }?.message
+                        ?? L(
+                            "Some release notes could not be synced to App Store Connect. Fix the failed locales, then submit again."
+                        ))
             case .missing:
                 results[locale] = .skipped
             default:
@@ -776,7 +794,9 @@ extension AppState {
             )
         }
         if cancelled { return false }
-        return !results.values.contains { if case .failed = $0 { true } else { false } }
+        let succeeded = !results.values.contains { if case .failed = $0 { true } else { false } }
+        if succeeded { clearLastErrorPreservingWorkspaceDraftError() }
+        return succeeded
     }
 
     /// Marks a sync as running. Only the most recently started sync may clear

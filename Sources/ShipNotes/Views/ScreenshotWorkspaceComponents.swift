@@ -182,7 +182,7 @@ struct ScreenshotAssetTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             DeviceFrameView(isIPad: asset.deviceSlot?.displayName.contains("iPad") ?? false) {
-                LocalImageThumbnail(url: asset.url)
+                LocalImageThumbnail(url: asset.url, contentHash: asset.contentHash)
                     .frame(height: 110)
             }
             .frame(height: 122)
@@ -239,6 +239,7 @@ struct ScreenshotAssetTile: View {
 
 struct LocalImageThumbnail: View {
     let url: URL
+    var contentHash: String? = nil
     @State private var image: NSImage?
 
     var body: some View {
@@ -256,11 +257,20 @@ struct LocalImageThumbnail: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .task(id: url) {
+        .task(id: ScreenshotThumbnailRequest(url: url, contentHash: contentHash)) {
             let maxPixel: CGFloat = 480
-            image = await ScreenshotThumbnailCache.shared.thumbnail(for: url, maxPixel: maxPixel)
+            image = nil
+            let loaded = await ScreenshotThumbnailCache.shared.thumbnail(
+                for: url, maxPixel: maxPixel, contentHash: contentHash)
+            guard !Task.isCancelled else { return }
+            image = loaded
         }
     }
+}
+
+struct ScreenshotThumbnailRequest: Hashable, Sendable {
+    let url: URL
+    let contentHash: String?
 }
 
 /// Builds and caches downsampled thumbnails with ImageIO so repeated
@@ -276,8 +286,8 @@ final class ScreenshotThumbnailCache: @unchecked Sendable {
         cache.countLimit = maxItems
     }
 
-    func thumbnail(for url: URL, maxPixel: CGFloat) async -> NSImage? {
-        let key = cacheKey(for: url, maxPixel: maxPixel)
+    func thumbnail(for url: URL, maxPixel: CGFloat, contentHash: String? = nil) async -> NSImage? {
+        let key = cacheKey(for: url, maxPixel: maxPixel, contentHash: contentHash)
         if let cached = cache.object(forKey: key) {
             return cached
         }
@@ -292,11 +302,11 @@ final class ScreenshotThumbnailCache: @unchecked Sendable {
         return image
     }
 
-    private func cacheKey(for url: URL, maxPixel: CGFloat) -> NSString {
+    private func cacheKey(for url: URL, maxPixel: CGFloat, contentHash: String?) -> NSString {
         let attributes = (try? FileManager.default.attributesOfItem(atPath: url.path)) ?? [:]
         let modifiedAt = (attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
         let fileSize = (attributes[.size] as? NSNumber)?.int64Value ?? 0
-        return "\(url.path)|\(Int(maxPixel))|\(fileSize)|\(modifiedAt)" as NSString
+        return "\(url.path)|\(Int(maxPixel))|\(contentHash ?? "")|\(fileSize)|\(modifiedAt)" as NSString
     }
 
     private static func makeThumbnail(for url: URL, maxPixel: CGFloat) -> NSImage? {

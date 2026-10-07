@@ -9,6 +9,10 @@ This document describes the current implementation, not a guarantee about third-
 - Apple Ads credentials use a separate Keychain service in `AppleAdsKeychainStore`.
 - Non-secret preferences, AI model/base-URL settings, screenshot overrides, and sync history are stored locally using `UserDefaults`. Up to 100 sync runs are retained. These preferences are not encrypted by ShipNotes as secret storage.
 - Imported release material stays in its source files and in the app's working state. Local file paths can appear in settings, errors, and diagnostic output; sanitize them before sharing logs or screenshots.
+- Workspace drafts are saved in Application Support under the application's bundle identifier. They include unpublished text, imported source paths, and screenshot workspace choices, scoped by account/app/version; they do not contain API keys or private keys. Draft files use atomic replacement and are not encrypted by ShipNotes.
+- Pending screenshot-processing reservations are saved locally so they can be checked again without repeating a destructive replacement. History exports include the filtered operation records and their error messages. Review exported files before sharing them.
+
+See [draft and synchronization behavior](reliability.md) for restoration, conflict handling, processing states, and export limits.
 
 Keychain credentials are configured with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. Credentials may be cached in process memory during a session. Uninstalling the app bundle should not be treated as revoking keys or clearing all local state; remove credentials in Settings and revoke them with their issuing services when needed.
 

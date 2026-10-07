@@ -6,6 +6,7 @@ import AppKit
 @MainActor
 extension AppState {
     func loadScreenshotsFolder(_ url: URL) {
+        if screenshotFolder != nil { saveCurrentWorkspaceDraft() }
         // The scan walks the directory tree and SHA256-hashes every image
         // (reading each multi-MB file). Running that synchronously on the main
         // actor freezes the UI on real screenshot folders, so we hand the
@@ -42,14 +43,14 @@ extension AppState {
                 guard screenshotScanRequestID == requestID else { return }
 
                 let previousLocale = selectedScreenshotLocale
+                let previousScan = screenshotFolder == url ? screenshotScan : nil
+                preserveScreenshotAdjustments(from: previousScan, to: scan)
                 screenshotFolder = url
                 screenshotScan = scan
                 selectedScreenshotAssetId = nil
                 screenshotFocusTargetID = nil
                 screenshotUploadSummary = nil
                 pendingScreenshotReplacement = nil
-                screenshotAISharedAssetIDs = []
-                screenshotAILocaleOverrides = [:]
                 screenshotCoverageGroupsCache = nil
                 screenshotIssuesCache = nil
                 if let key = requirementKey, let detection {
@@ -64,13 +65,32 @@ extension AppState {
                     ? previousLocale
                     : (groups.first { !$0.isUnassigned } ?? groups.first)?.locale
                 reconcileScreenshotOrder()
+                restoreScreenshotWorkspaceDraft()
+                scheduleWorkspaceDraftSave()
                 refreshRemoteScreenshotCountsIfNeeded()
-                lastError = nil
+                clearLastErrorPreservingWorkspaceDraftError()
             } catch {
                 guard screenshotScanRequestID == requestID else { return }
                 handleError(error)
             }
         }
+    }
+
+    /// A rescan updates file contents, not the user's classification/order of
+    /// unchanged files. Changed and new images must be reviewed again.
+    internal func preserveScreenshotAdjustments(from previous: ScreenshotScan?, to scan: ScreenshotScan) {
+        let oldAssets = Dictionary(
+            (previous?.assets ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let unchangedIDs = Set(
+            scan.assets.compactMap { asset -> String? in
+                guard let old = oldAssets[asset.id], let hash = asset.contentHash,
+                    old.contentHash == hash, old.deviceSlot == asset.deviceSlot
+                else { return nil }
+                return asset.id
+            })
+        screenshotAILocaleOverrides = screenshotAILocaleOverrides.filter { unchangedIDs.contains($0.key) }
+        screenshotAISharedAssetIDs.formIntersection(unchangedIDs)
+        screenshotOrderByGroup = screenshotOrderByGroup.mapValues { $0.filter { unchangedIDs.contains($0) } }
     }
 
     func askAIToClassifyScreenshots() {
@@ -144,7 +164,7 @@ extension AppState {
         if let failure {
             handleError(failure)
         } else {
-            lastError = nil
+            clearLastErrorPreservingWorkspaceDraftError()
         }
     }
 
@@ -498,6 +518,7 @@ extension AppState {
             selectedScreenshotLocale = firstChangedLocale
         }
         reconcileScreenshotOrder()
+        scheduleWorkspaceDraftSave()
         return changedCount
     }
 
@@ -545,6 +566,7 @@ extension AppState {
         guard orderedIDs.indices.contains(target) else { return }
         orderedIDs.swapAt(index, target)
         screenshotOrderByGroup[key] = orderedIDs
+        scheduleWorkspaceDraftSave()
     }
 
 }

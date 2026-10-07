@@ -124,6 +124,23 @@ final class AppState {
     var selectedAIProvider: AIProvider = .none
     var selectedVisionAIProvider: AIProvider = .none
 
+    @ObservationIgnored var hasBootstrappedForLaunch = false
+    @ObservationIgnored var appStoreConnectionRequestID: UUID?
+    var pendingScreenshotProcessing: [String: PendingScreenshotProcessing] = [:]
+    var isCheckingScreenshotProcessing = false
+
+    var workspaceDraftSaveError: String?
+    var workspaceDraftConflictError: String?
+    @ObservationIgnored let workspaceDraftStore: any WorkspaceDraftStoring
+    @ObservationIgnored var workspaceDrafts: [WorkspaceDraftKey: WorkspaceDraft] = [:]
+    @ObservationIgnored var workspaceDraftSaveTask: Task<Void, Never>?
+    @ObservationIgnored var workspaceDraftPersistenceBlocked = false
+    @ObservationIgnored var isRestoringWorkspaceDraft = false
+    @ObservationIgnored var workspaceDraftBaselineKey: WorkspaceDraftKey?
+    @ObservationIgnored var workspaceDraftReleaseBaselines: [String: String] = [:]
+    @ObservationIgnored var workspaceDraftStoreCopyBaselines: [String: [String: String]] = [:]
+    @ObservationIgnored var workspaceDraftScreenshotRestoreKey: WorkspaceDraftKey?
+
     @ObservationIgnored let parser = ReleaseNotesParser()
     @ObservationIgnored let storeCopyParser = StoreCopyParser()
     @ObservationIgnored let diff = DiffEngine()
@@ -170,13 +187,21 @@ final class AppState {
         appStoreService: (any AppStoreConnectServicing)? = nil,
         appleAdsCredentialStore: any AppleAdsCredentialStoring = AppleAdsKeychainStore(),
         appleAdsService: (any AppleAdsServicing)? = nil,
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        workspaceDraftStore: (any WorkspaceDraftStoring)? = nil
     ) {
         self.credentialStore = credentialStore
         self.aiKeychainStore = aiKeychainStore
         self.appStoreService = appStoreService
         self.appleAdsCredentialStore = appleAdsCredentialStore
         self.defaults = defaults
+        // Existing tests inject isolated UserDefaults suites. Keep their drafts
+        // in memory too, unless they explicitly provide a temporary file store.
+        self.workspaceDraftStore =
+            workspaceDraftStore
+            ?? (defaults === UserDefaults.standard
+                ? FileWorkspaceDraftStore() as any WorkspaceDraftStoring
+                : InMemoryWorkspaceDraftStore() as any WorkspaceDraftStoring)
         self.aiService = aiService ?? UnconfiguredAIService()
         self.visionAIService = visionAIService ?? UnconfiguredScreenshotVisionAIService()
         self.selectedVisionAIProvider = Self.loadStoredVisionAIProvider(defaults: defaults)
@@ -199,6 +224,8 @@ final class AppState {
         self.loadPersistedSyncHistory()
         self.aiCallCount = defaults.integer(forKey: SettingsKey.aiCallCount)
         self.screenshotIPadSupportOverrides = Self.loadScreenshotIPadSupportOverrides(defaults: defaults)
+        self.loadWorkspaceDrafts()
+        self.loadPendingScreenshotProcessing()
     }
 
     var isAIConfigured: Bool {

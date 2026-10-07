@@ -103,7 +103,7 @@ struct ScreenshotScannerTests {
         #expect(scan.assets.first?.relativePath == "iphone-6.5/01-home.png")
     }
 
-    @Test func onlyFilesThatCouldBeDuplicatesAreHashed() throws {
+    @Test func allFilesAreHashedForDuplicateDetectionAndContentRevisions() throws {
         let folder = try makeTempFolder()
         let english = folder.appending(path: "en-US")
         try FileManager.default.createDirectory(at: english, withIntermediateDirectories: true)
@@ -116,8 +116,8 @@ struct ScreenshotScannerTests {
 
         #expect(hashes["01-home.png"] ?? nil != nil)
         #expect(hashes["01-home.png"] == hashes["02-copy.png"])
-        // A file with a unique (locale, slot, byte size) can't be a duplicate.
-        #expect(hashes["03-other-size.png"] ?? "unexpected" == nil)
+        // A unique image still needs a revision for refresh and draft restore.
+        #expect(hashes["03-other-size.png"] ?? nil != nil)
     }
 
     @Test func cancelledScanStopsWithCancellationError() async throws {

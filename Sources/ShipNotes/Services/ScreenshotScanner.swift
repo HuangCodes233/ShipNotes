@@ -77,7 +77,7 @@ struct ScreenshotScanner {
             throw ScreenshotScannerError.noImagesFound(url)
         }
 
-        let assets = try hashingPossibleDuplicates(found)
+        let assets = try hashingAssets(found)
         return ScreenshotScan(
             inputRoot: url,
             root: scanRoot,
@@ -87,33 +87,25 @@ struct ScreenshotScanner {
         )
     }
 
-    /// The content hash only feeds duplicate detection. Identical files have
-    /// identical byte sizes, so only files sharing (slot, byte size) are read
-    /// and hashed — not every multi-MB image on every scan. The locale is
-    /// left out on purpose: AI matching can move an unassigned file into a
-    /// locale later, and it still needs a hash to be flagged as a duplicate.
-    private func hashingPossibleDuplicates(
+    /// A content revision is needed for every image: thumbnail invalidation
+    /// and safe restoration of AI assignments also depend on it, even when
+    /// the image has no possible duplicate in this scan.
+    private func hashingAssets(
         _ found: [(asset: ScreenshotAsset, fileSize: Int?)]
     ) throws -> [ScreenshotAsset] {
-        let groups = Dictionary(grouping: found.indices) { index -> String in
-            let (asset, fileSize) = found[index]
-            return "\(asset.deviceSlot?.rawValue ?? "")|\(fileSize.map(String.init) ?? "unknown-\(index)")"
-        }
         var assets = found.map(\.asset)
-        for indices in groups.values where indices.count > 1 {
-            for index in indices {
-                try Task.checkCancellation()
-                let asset = assets[index]
-                assets[index] = ScreenshotAsset(
-                    url: asset.url,
-                    relativePath: asset.relativePath,
-                    size: asset.size,
-                    locale: asset.locale,
-                    deviceSlot: asset.deviceSlot,
-                    status: asset.status,
-                    contentHash: fileHash(at: asset.url)
-                )
-            }
+        for index in assets.indices {
+            try Task.checkCancellation()
+            let asset = assets[index]
+            assets[index] = ScreenshotAsset(
+                url: asset.url,
+                relativePath: asset.relativePath,
+                size: asset.size,
+                locale: asset.locale,
+                deviceSlot: asset.deviceSlot,
+                status: asset.status,
+                contentHash: try fileHash(at: asset.url)
+            )
         }
         return assets
     }
@@ -273,10 +265,17 @@ struct ScreenshotScanner {
         return ScreenshotPixelSize(width: width, height: height)
     }
 
-    private func fileHash(at url: URL) -> String? {
-        guard let data = try? Data(contentsOf: url, options: [.mappedIfSafe]) else { return nil }
-        let digest = SHA256.hash(data: data)
-        return digest.map { String(format: "%02x", $0) }.joined()
+    private func fileHash(at url: URL) throws -> String {
+        let file = try FileHandle(forReadingFrom: url)
+        defer { try? file.close() }
+        var hasher = SHA256()
+        while true {
+            try Task.checkCancellation()
+            guard let chunk = try file.read(upToCount: 1_048_576), !chunk.isEmpty else { break }
+            hasher.update(data: chunk)
+        }
+        try Task.checkCancellation()
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     private func detectLocale(for file: URL, root: URL) -> String? {

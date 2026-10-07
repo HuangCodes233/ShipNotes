@@ -6,6 +6,111 @@ import AppKit
 
 @MainActor
 extension AppState {
+    internal static let screenshotProcessingPersistKey = "shipnotes.screenshot.processing.v1"
+
+    var currentPendingScreenshotProcessing: [PendingScreenshotProcessing] {
+        pendingScreenshotProcessing.values
+            .filter { $0.appId == selectedAppId && $0.versionId == selectedVersionId }
+            .sorted { $0.key < $1.key }
+    }
+
+    func loadPendingScreenshotProcessing() {
+        guard let data = defaults.data(forKey: Self.screenshotProcessingPersistKey),
+            let records = try? JSONDecoder().decode([PendingScreenshotProcessing].self, from: data)
+        else { return }
+        pendingScreenshotProcessing = Dictionary(
+            records.map { ($0.key, $0) }, uniquingKeysWith: { _, latest in latest })
+    }
+
+    internal func persistPendingScreenshotProcessing() {
+        if pendingScreenshotProcessing.isEmpty {
+            defaults.removeObject(forKey: Self.screenshotProcessingPersistKey)
+        } else if let data = try? JSONEncoder().encode(Array(pendingScreenshotProcessing.values)) {
+            defaults.set(data, forKey: Self.screenshotProcessingPersistKey)
+        }
+    }
+
+    internal func rememberPendingScreenshotProcessing(_ record: PendingScreenshotProcessing) {
+        pendingScreenshotProcessing[record.key] = record
+        persistPendingScreenshotProcessing()
+    }
+
+    /// This action only polls uploaded asset IDs and finishes their order. It
+    /// never calls replaceScreenshots, so retrying a slow queue is safe.
+    func checkPendingScreenshotProcessing() async {
+        guard !isCheckingScreenshotProcessing, !isUploadingScreenshots,
+            let service = appStoreService
+        else { return }
+        let pending = currentPendingScreenshotProcessing
+        guard !pending.isEmpty else { return }
+        isCheckingScreenshotProcessing = true
+        defer { isCheckingScreenshotProcessing = false }
+        var failures: [String] = []
+        var outcomes: [String: LocaleSyncResult] = [:]
+        let checks = await mapConcurrently(pending, maxConcurrent: 4) { record -> Result<Int, any Error> in
+            do { return .success(try await service.resumeScreenshotProcessing(record.reservation)) } catch {
+                return .failure(error)
+            }
+        }
+        for (record, check) in zip(pending, checks) {
+            do {
+                _ = try check.get()
+                pendingScreenshotProcessing.removeValue(forKey: record.key)
+                if case .failed? = outcomes[record.locale] {} else { outcomes[record.locale] = .succeeded }
+            } catch let error as ScreenshotProcessingPendingError {
+                var updated = record
+                updated.reservation = error.reservation
+                pendingScreenshotProcessing[record.key] = updated
+                if case .failed? = outcomes[record.locale] {} else { outcomes[record.locale] = .processing }
+            } catch let error as AppStoreConnectClientError {
+                // A confirmed processing rejection is terminal. Other errors
+                // leave the IDs intact so another check can recover.
+                if case .screenshotProcessingFailed = error {
+                    pendingScreenshotProcessing.removeValue(forKey: record.key)
+                    outcomes[record.locale] = .failed(error.localizedDescription)
+                } else {
+                    outcomes[record.locale] = .processing
+                }
+                failures.append("\(record.locale): \(error.localizedDescription)")
+            } catch {
+                outcomes[record.locale] = .processing
+                failures.append("\(record.locale): \(error.localizedDescription)")
+            }
+            persistPendingScreenshotProcessing()
+        }
+        for locale in outcomes.keys {
+            if case .failed? = outcomes[locale] { continue }
+            if pendingScreenshotProcessing.values.contains(where: {
+                $0.appId == pending[0].appId && $0.versionId == pending[0].versionId && $0.locale == locale
+            }) {
+                outcomes[locale] = .processing
+            }
+        }
+        for index in syncHistory.indices
+        where syncHistory[index].resolvedKind == .screenshots
+            && syncHistory[index].appId == pending[0].appId && syncHistory[index].versionId == pending[0].versionId
+        {
+            for (locale, outcome) in outcomes where syncHistory[index].localeResults[locale] == .processing {
+                syncHistory[index].localeResults[locale] = outcome
+            }
+        }
+        persistSyncHistory()
+        if selectedAppId == pending[0].appId, selectedVersionId == pending[0].versionId {
+            screenshotUploadSummary =
+                currentPendingScreenshotProcessing.isEmpty
+                ? L("Screenshot processing checks completed.")
+                : L(
+                    "Screenshots uploaded. Apple is still processing them. Check processing status before replacing this set again."
+                )
+            if failures.isEmpty {
+                clearLastErrorPreservingWorkspaceDraftError()
+            } else {
+                setError(failures.joined(separator: "\n"), category: .appStoreConnect)
+            }
+            refreshRemoteScreenshotCounts()
+        }
+    }
+
     func uploadSelectedScreenshotLocale() {
         guard let locale = selectedScreenshotGroup?.locale else { return }
         Task { await prepareScreenshotReplacementPreview(locales: [locale]) }
@@ -190,8 +295,8 @@ extension AppState {
         }
         var results = [String: Result<[RemoteScreenshotSet], any Error>]()
         results.reserveCapacity(ids.count)
-        for index in ids.indices {
-            results[ids[index]] = fetched[index]
+        for (id, result) in zip(ids, fetched) {
+            results[id] = result
         }
         return results
     }
@@ -229,6 +334,13 @@ extension AppState {
     }
 
     func prepareScreenshotReplacementPreview(locales: [String]) async {
+        guard currentPendingScreenshotProcessing.isEmpty, !isCheckingScreenshotProcessing else {
+            setError(
+                L(
+                    "Screenshots uploaded. Apple is still processing them. Check processing status before replacing this set again."
+                ))
+            return
+        }
         guard let service = appStoreService else {
             setError(L("Connect App Store Connect before uploading screenshots."), category: .auth)
             return
@@ -269,7 +381,7 @@ extension AppState {
         // The remote screenshots and localization IDs belong to the version
         // that was selected when the preview started. Showing (and later
         // confirming) them after a switch would replace another version's set.
-        guard screenshotPreviewRequestID == requestID,
+        guard !Task.isCancelled, screenshotPreviewRequestID == requestID,
             selectedAppId == requestedAppId,
             selectedVersionId == requestedVersionId
         else { return }
@@ -335,11 +447,19 @@ extension AppState {
             versionId: requestedVersionId
         )
         if failures.isEmpty {
-            lastError = nil
+            clearLastErrorPreservingWorkspaceDraftError()
         }
     }
 
     func uploadScreenshotReplacementPlan(_ plan: ScreenshotReplacementPlan) async {
+        guard !isUploadingScreenshots, !isCheckingScreenshotProcessing else { return }
+        guard currentPendingScreenshotProcessing.isEmpty else {
+            setError(
+                L(
+                    "Screenshots uploaded. Apple is still processing them. Check processing status before replacing this set again."
+                ))
+            return
+        }
         guard let service = appStoreService, let versionId = plan.versionId ?? selectedVersionId else {
             setError(L("Connect App Store Connect before uploading screenshots."), category: .auth)
             return
@@ -376,6 +496,7 @@ extension AppState {
 
         var uploadedCount = 0
         var uploadedLocales = 0
+        var processingLocales = 0
         var failures: [String] = []
         var results: [String: LocaleSyncResult] = [:]
 
@@ -393,6 +514,7 @@ extension AppState {
                 localePlan: localePlan,
                 isBlocked: blockedLocales.contains(localePlan.locale),
                 versionId: versionId,
+                appId: appId ?? "",
                 service: service,
                 startedAt: startedAt,
                 uploadID: uploadID,
@@ -409,6 +531,10 @@ extension AppState {
                 results[locale] = .succeeded
             case .skipped(let locale):
                 results[locale] = .skipped
+            case .processing(let locale, let count):
+                processingLocales += 1
+                uploadedCount += count
+                results[locale] = .processing
             case .failure(let locale, let error, let hadRemoteContent):
                 // Replacement deletes old screenshots first. A failed run can
                 // leave this locale empty or only partly uploaded.
@@ -435,12 +561,16 @@ extension AppState {
                 versionId: versionId
             )
         }
-        if uploadedCount > 0 {
+        if processingLocales > 0 {
+            screenshotUploadSummary = L(
+                "Uploaded %1$d screenshot(s); Apple is still processing %2$d locale(s). Check processing status before uploading again.",
+                uploadedCount, processingLocales)
+        } else if uploadedCount > 0 {
             screenshotUploadSummary = L(
                 "Uploaded %1$d screenshot(s) for %2$d locale(s).", uploadedCount, uploadedLocales)
         }
         if failures.isEmpty {
-            lastError = nil
+            clearLastErrorPreservingWorkspaceDraftError()
         } else {
             setError(failures.joined(separator: "\n"), category: .appStoreConnect, isRetryable: true)
         }
@@ -452,6 +582,7 @@ extension AppState {
     enum LocaleUploadResult: Sendable {
         case success(locale: String, count: Int)
         case skipped(locale: String)
+        case processing(locale: String, count: Int)
         case failure(locale: String, error: String, hadRemoteContent: Bool)
         case blockingIssue(locale: String)
     }
@@ -460,6 +591,7 @@ extension AppState {
         localePlan: ScreenshotReplacementLocalePlan,
         isBlocked: Bool,
         versionId: String,
+        appId: String,
         service: AppStoreConnectServicing,
         startedAt: Date,
         uploadID: UUID,
@@ -472,16 +604,18 @@ extension AppState {
         }
 
         var replacedSlotWithRemoteContent = false
+        var localeUploadCount = 0
+        var hasPendingProcessing = false
         do {
+            try Task.checkCancellation()
             let localizationId = try await ensureLocalizationId(
                 for: locale,
                 versionId: versionId,
                 service: service,
                 knownLocalizationId: localePlan.localizationId
             )
-            var localeUploadCount = 0
-
             for slotPlan in localePlan.replacingSlots {
+                try Task.checkCancellation()
                 let assets = slotPlan.localAssets.filter { $0.status == .ready }
                 guard !assets.isEmpty else { continue }
                 if !slotPlan.remoteScreenshots.isEmpty {
@@ -506,29 +640,40 @@ extension AppState {
                     )
                 )
 
-                localeUploadCount += try await service.replaceScreenshots(
-                    localizationId: localizationId,
-                    displayType: slotPlan.slot.appStoreConnectDisplayType,
-                    files: assets.map(\.url),
-                    onProgress: { [weak self] index, total, _ in
-                        Task { @MainActor [weak self] in
-                            guard let self, self.screenshotUploadRequestID == uploadID else { return }
-                            self.screenshotUploadActivity = AIActivity(
-                                startedAt: startedAt,
-                                message: L(
-                                    "Uploading %1$@ · %2$@ (%3$d/%4$d)…",
-                                    locale,
-                                    slotPlan.slot.displayName,
-                                    index + 1,
-                                    total
+                do {
+                    localeUploadCount += try await service.replaceScreenshots(
+                        localizationId: localizationId,
+                        displayType: slotPlan.slot.appStoreConnectDisplayType,
+                        files: assets.map(\.url),
+                        onProgress: { [weak self] index, total, _ in
+                            Task { @MainActor [weak self] in
+                                guard let self, self.screenshotUploadRequestID == uploadID else { return }
+                                self.screenshotUploadActivity = AIActivity(
+                                    startedAt: startedAt,
+                                    message: L(
+                                        "Uploading %1$@ · %2$@ (%3$d/%4$d)…",
+                                        locale,
+                                        slotPlan.slot.displayName,
+                                        index + 1,
+                                        total
+                                    )
                                 )
-                            )
+                            }
                         }
-                    }
-                )
+                    )
+                } catch let error as ScreenshotProcessingPendingError {
+                    hasPendingProcessing = true
+                    localeUploadCount += error.reservation.uploaded.count
+                    rememberPendingScreenshotProcessing(
+                        .init(
+                            appId: appId, versionId: versionId, locale: locale, reservation: error.reservation
+                        ))
+                }
             }
 
-            if localeUploadCount > 0 {
+            if hasPendingProcessing {
+                return .processing(locale: locale, count: localeUploadCount)
+            } else if localeUploadCount > 0 {
                 return .success(locale: locale, count: localeUploadCount)
             } else {
                 return .skipped(locale: locale)
@@ -634,8 +779,14 @@ extension AppState {
             let reason = L("Connect App Store Connect before uploading screenshots.")
             return ScreenshotPreviewControlsState(selectedDisabledReason: reason, allDisabledReason: reason)
         }
-        if isUploadingScreenshots || isPreparingScreenshotReplacement {
+        if isUploadingScreenshots || isPreparingScreenshotReplacement || isCheckingScreenshotProcessing {
             let reason = L("Screenshot upload is already in progress.")
+            return ScreenshotPreviewControlsState(selectedDisabledReason: reason, allDisabledReason: reason)
+        }
+        if !currentPendingScreenshotProcessing.isEmpty {
+            let reason = L(
+                "Screenshots uploaded. Apple is still processing them. Check processing status before replacing this set again."
+            )
             return ScreenshotPreviewControlsState(selectedDisabledReason: reason, allDisabledReason: reason)
         }
         if selectedVersion?.canEditMetadata != true {

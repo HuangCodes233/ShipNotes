@@ -47,6 +47,9 @@ protocol AppStoreConnectServicing: Sendable {
         localizationId: String, displayType: String, files: [URL], onProgress: (@Sendable (Int, Int, String) -> Void)?
     ) async throws -> Int
 
+    /// Confirm already-uploaded assets without deleting or uploading again.
+    func resumeScreenshotProcessing(_ reservation: ScreenshotProcessingReservation) async throws -> Int
+
     /// Fetch current screenshots grouped by App Store display type for one localization.
     func fetchScreenshotSets(localizationId: String) async throws -> [RemoteScreenshotSet]
 
@@ -54,6 +57,14 @@ protocol AppStoreConnectServicing: Sendable {
     /// submission, attach the version as an item, and PATCH `submitted: true`.
     /// Returns the final submission's state (e.g., "WAITING_FOR_REVIEW").
     func submitForReview(appId: String, versionId: String, platform: String) async throws -> String
+}
+
+extension AppStoreConnectServicing {
+    func resumeScreenshotProcessing(_ reservation: ScreenshotProcessingReservation) async throws -> Int {
+        // Existing clients/fakes that cannot inspect the queue must preserve
+        // the pending state rather than incorrectly claim completion.
+        throw ScreenshotProcessingPendingError(reservation: reservation)
+    }
 }
 
 enum AppStoreConnectClientError: LocalizedError, Equatable, Sendable {

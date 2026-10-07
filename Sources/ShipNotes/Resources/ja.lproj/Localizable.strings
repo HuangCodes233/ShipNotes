@@ -650,3 +650,28 @@
 
 "AI is matching screenshots (%1$d / %2$d)…" = "AI がスクリーンショットを照合しています（%1$d / %2$d）…";
 "Old screenshots are still listed in App Store Connect. Upload stopped before adding new screenshots. Refresh and try again." = "App Store Connect に古い画像がまだ表示されています。新しい画像のアップロードを停止しました。更新して再試行してください。";
+
+// Draft restoration and operation history
+"%d processing" = "%d 件を処理中";
+"All apps" = "すべてのアプリ";
+"All operations" = "すべての操作";
+"All results" = "すべての結果";
+"App" = "アプリ";
+"Check Processing" = "処理状況を確認";
+"Export CSV…" = "CSV を書き出す…";
+"Export JSON…" = "JSON を書き出す…";
+"Export…" = "書き出す…";
+"No matching runs" = "一致する履歴がありません";
+"Operation" = "操作";
+"Partially failed" = "一部失敗";
+"Restored from %@" = "%@ から復元しました";
+"Result" = "結果";
+"Screenshot processing checks completed." = "スクリーンショットの処理状況を確認しました。";
+"Screenshots uploaded. Apple is still processing them. Check processing status before replacing this set again." = "スクリーンショットはアップロード済みで、Apple が処理中です。このセットを再度置き換える前に処理状況を確認してください。";
+"Search app, version, or locale" = "アプリ、バージョン、言語を検索";
+"Showing %1$d of %2$d runs" = "%2$d 件中 %1$d 件を表示";
+"The source or remote content changed. Your edited draft was kept; review the differences before syncing." = "ソースまたはリモートの内容が変更されています。編集した下書きを保持しました。同期前に差分を確認してください。";
+"This workspace draft file was created by a newer version of ShipNotes." = "この作業スペースの下書きは新しいバージョンの ShipNotes で作成されています。";
+"Uploaded %1$d screenshot(s); Apple is still processing %2$d locale(s). Check processing status before uploading again." = "%1$d 枚をアップロードしました。Apple は %2$d 言語を処理中です。再アップロード前に処理状況を確認してください。";
+"Workspace drafts could not be opened. The existing draft file has been preserved. %@" = "作業スペースの下書きを開けませんでした。既存のファイルは保持されています。%@";
+"Workspace drafts could not be saved. Your edits are still available in this session. %@" = "作業スペースの下書きを保存できませんでした。編集内容は現在のセッションに保持されています。%@";

@@ -650,3 +650,28 @@
 
 "AI is matching screenshots (%1$d / %2$d)…" = "AI is matching screenshots (%1$d / %2$d)…";
 "Old screenshots are still listed in App Store Connect. Upload stopped before adding new screenshots. Refresh and try again." = "Old screenshots are still listed in App Store Connect. Upload stopped before adding new screenshots. Refresh and try again.";
+
+// Draft restoration and operation history
+"%d processing" = "%d processing";
+"All apps" = "All apps";
+"All operations" = "All operations";
+"All results" = "All results";
+"App" = "App";
+"Check Processing" = "Check Processing";
+"Export CSV…" = "Export CSV…";
+"Export JSON…" = "Export JSON…";
+"Export…" = "Export…";
+"No matching runs" = "No matching runs";
+"Operation" = "Operation";
+"Partially failed" = "Partially failed";
+"Restored from %@" = "Restored from %@";
+"Result" = "Result";
+"Screenshot processing checks completed." = "Screenshot processing checks completed.";
+"Screenshots uploaded. Apple is still processing them. Check processing status before replacing this set again." = "Screenshots uploaded. Apple is still processing them. Check processing status before replacing this set again.";
+"Search app, version, or locale" = "Search app, version, or locale";
+"Showing %1$d of %2$d runs" = "Showing %1$d of %2$d runs";
+"The source or remote content changed. Your edited draft was kept; review the differences before syncing." = "The source or remote content changed. Your edited draft was kept; review the differences before syncing.";
+"This workspace draft file was created by a newer version of ShipNotes." = "This workspace draft file was created by a newer version of ShipNotes.";
+"Uploaded %1$d screenshot(s); Apple is still processing %2$d locale(s). Check processing status before uploading again." = "Uploaded %1$d screenshot(s); Apple is still processing %2$d locale(s). Check processing status before uploading again.";
+"Workspace drafts could not be opened. The existing draft file has been preserved. %@" = "Workspace drafts could not be opened. The existing draft file has been preserved. %@";
+"Workspace drafts could not be saved. Your edits are still available in this session. %@" = "Workspace drafts could not be saved. Your edits are still available in this session. %@";

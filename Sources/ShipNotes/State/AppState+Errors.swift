@@ -65,7 +65,10 @@ extension AppState {
             return nil
         }
     }
-    func dismissError() { lastError = nil }
+    func dismissError() {
+        workspaceDraftConflictError = nil
+        lastError = nil
+    }
 
     /// Convenience setter for user-facing / validation messages that are not a
     /// thrown `Error`. Prefer `handleError(_:)` for caught errors so category

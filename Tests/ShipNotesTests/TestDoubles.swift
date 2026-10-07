@@ -24,6 +24,8 @@ final class MockASCService: AppStoreConnectServicing, @unchecked Sendable {
     var updateStoreMetadataFieldError: Error?
     var fetchScreenshotSetsError: Error?
     var replaceScreenshotsError: Error?
+    var resumedScreenshotProcessing: [ScreenshotProcessingReservation] = []
+    var resumeScreenshotProcessingError: Error?
     var fetchLocalizationsCallCount = 0
     var lastUpdatedWhatsNew: (localizationId: String, text: String)?
     var updateWhatsNewDelayNanoseconds: UInt64 = 0
@@ -168,6 +170,12 @@ final class MockASCService: AppStoreConnectServicing, @unchecked Sendable {
             try? await Task.sleep(nanoseconds: delay)
         }
         return remoteScreenshotSets[localizationId] ?? []
+    }
+
+    func resumeScreenshotProcessing(_ reservation: ScreenshotProcessingReservation) async throws -> Int {
+        resumedScreenshotProcessing.append(reservation)
+        if let resumeScreenshotProcessingError { throw resumeScreenshotProcessingError }
+        return reservation.uploaded.count
     }
     func submitForReview(appId: String, versionId: String, platform: String) async throws -> String {
         submitForReviewCalled = true

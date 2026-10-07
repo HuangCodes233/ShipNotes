@@ -8,6 +8,7 @@ private let _languageBootstrap: Void = {
 struct ShipNotesApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var state = AppState()
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         _ = _languageBootstrap
@@ -19,7 +20,13 @@ struct ShipNotesApp: App {
                 .environment(state)
                 .frame(minWidth: 1100, minHeight: 720)
                 .onOpenURL { url in state.importURL(url) }
-                .task { await state.bootstrapForLaunch() }
+                .task {
+                    appDelegate.workspaceState = state
+                    await state.bootstrapForLaunch()
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .background { state.persistWorkspaceDraftsNow() }
+                }
         }
         .defaultSize(width: 1280, height: 800)
         .windowResizability(.contentMinSize)
@@ -54,10 +61,19 @@ struct ShipNotesApp: App {
     }
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    weak var workspaceState: AppState?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Apply the saved light/dark/system preference before windows show
         // so there's no flash of the wrong appearance.
         AppearanceManager.applyPersistedAtLaunch()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        // This callback survives closing the last window, unlike a view's
+        // notification subscription. The App owns the shared state.
+        workspaceState?.persistWorkspaceDraftsNow()
     }
 }

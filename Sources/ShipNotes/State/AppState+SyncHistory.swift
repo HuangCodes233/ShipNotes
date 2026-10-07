@@ -17,7 +17,10 @@ extension AppState {
             completedAt: Date(),
             dryRun: dryRun,
             localeResults: localeResults,
-            kind: kind
+            kind: kind,
+            appName: apps.first { $0.id == (appId ?? selectedAppId) }?.name,
+            versionString: versionsByApp[appId ?? selectedAppId ?? ""]?
+                .first { $0.id == (versionId ?? selectedVersionId) }?.versionString
         )
         appendSyncRun(run)
     }

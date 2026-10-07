@@ -253,7 +253,7 @@ struct LocalScreenshotReplacementTile: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            LocalImageThumbnail(url: asset.url)
+            LocalImageThumbnail(url: asset.url, contentHash: asset.contentHash)
                 .frame(width: 104, height: 118)
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .overlay(

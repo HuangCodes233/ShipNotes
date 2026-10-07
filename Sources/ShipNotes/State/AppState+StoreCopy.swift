@@ -32,12 +32,14 @@ extension AppState {
             : text
         storeCopyLocales[index].localMetadata.setValue(normalized, for: field)
         recalculateStoreCopy(at: index)
+        scheduleWorkspaceDraftSave()
     }
 
     func revertStoreCopyToRemote(_ locale: String) {
         guard let index = storeCopyLocales.firstIndex(where: { $0.locale == locale }) else { return }
         storeCopyLocales[index].localMetadata = storeCopyLocales[index].remoteMetadata ?? .empty
         recalculateStoreCopy(at: index)
+        scheduleWorkspaceDraftSave()
     }
 
     func optimizeStoreCopyLocale(_ locale: String) {
@@ -82,7 +84,8 @@ extension AppState {
                 }
                 self.storeCopyLocales[index].localMetadata = merged
                 self.recalculateStoreCopy(at: index)
-                self.lastError = nil
+                self.scheduleWorkspaceDraftSave()
+                self.clearLastErrorPreservingWorkspaceDraftError()
             } catch {
                 guard self.selectedAppId == requestedAppId,
                     self.selectedVersionId == requestedVersionId
@@ -175,10 +178,11 @@ extension AppState {
 
             switch outcome {
             case .parsed(let parsed, let source):
+                clearLastErrorPreservingWorkspaceDraftError()
                 applyImportedStoreCopy(parsed)
                 storeCopySourceURL = source
                 storeCopySourceDescription = L("Imported from %@", parsed.sourceDescription)
-                lastError = nil
+                scheduleWorkspaceDraftSave()
             case .fallbackToAI(let nearbySource, let originalMessage):
                 if aiService.isConfigured {
                     askAIToParseStoreCopy(url: nearbySource ?? url)
@@ -348,10 +352,11 @@ extension AppState {
                 sourceDescription: "AI · \(url.lastPathComponent)"
             )
             self.bumpAICallCount()
+            self.clearLastErrorPreservingWorkspaceDraftError()
             self.applyImportedStoreCopy(parsed)
             self.storeCopySourceURL = url
             self.storeCopySourceDescription = L("Imported from %@", parsed.sourceDescription)
-            self.lastError = nil
+            self.scheduleWorkspaceDraftSave()
         } catch {
             guard selectedAppId == requestedAppId,
                 selectedVersionId == requestedVersionId
@@ -398,6 +403,7 @@ extension AppState {
     }
 
     func applyImportedStoreCopy(_ parsed: ParsedStoreCopy) {
+        saveCurrentWorkspaceDraft()
         var importedLocales: [String] = []
         for (locale, partial) in parsed.locales {
             guard !partial.isEmpty else { continue }
@@ -418,6 +424,8 @@ extension AppState {
         } else if selectedStoreCopyLocale == nil {
             selectedStoreCopyLocale = storeCopyLocales.first?.locale
         }
+        restoreCurrentWorkspaceDraft(afterSourceReload: true)
+        scheduleWorkspaceDraftSave()
     }
 
     internal static func partialStoreMetadata(from fields: StoreMetadataFields) -> PartialStoreMetadataFields {
@@ -636,6 +644,7 @@ extension AppState {
                         }
                     }
                     results[locale] = .succeeded
+                    scheduleWorkspaceDraftSave()
                 } catch {
                     if Self.isCancellation(error) { return false }
                     if isStaleSync(generation: generation, appId: requestedAppId, versionId: versionId) { return false }
@@ -679,7 +688,8 @@ extension AppState {
         if !results.values.contains(where: {
             if case .failed = $0 { return true }; return false
         }) {
-            lastError = nil
+            clearLastErrorPreservingWorkspaceDraftError()
+            scheduleWorkspaceDraftSave()
         }
         return !results.values.contains { if case .failed = $0 { true } else { false } }
     }
@@ -741,7 +751,8 @@ extension AppState {
                     storeCopyLocales[updatedIndex].status = .synced
                 }
             }
-            lastError = nil
+            clearLastErrorPreservingWorkspaceDraftError()
+            scheduleWorkspaceDraftSave()
         } catch {
             if Self.isCancellation(error) { return }
             if isStaleSync(generation: generation, appId: requestedAppId, versionId: versionId) { return }

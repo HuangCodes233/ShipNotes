@@ -650,3 +650,28 @@
 
 "AI is matching screenshots (%1$d / %2$d)…" = "AI 正在匹配截图（%1$d / %2$d）…";
 "Old screenshots are still listed in App Store Connect. Upload stopped before adding new screenshots. Refresh and try again." = "App Store Connect 仍列出旧截图，已停止上传新图。请刷新后重试。";
+
+// Draft restoration and operation history
+"%d processing" = "%d 项处理中";
+"All apps" = "全部 App";
+"All operations" = "全部操作";
+"All results" = "全部结果";
+"App" = "App";
+"Check Processing" = "检查处理状态";
+"Export CSV…" = "导出 CSV…";
+"Export JSON…" = "导出 JSON…";
+"Export…" = "导出…";
+"No matching runs" = "没有匹配的记录";
+"Operation" = "操作";
+"Partially failed" = "部分失败";
+"Restored from %@" = "已从 %@ 恢复";
+"Result" = "结果";
+"Screenshot processing checks completed." = "截图处理状态检查完成。";
+"Screenshots uploaded. Apple is still processing them. Check processing status before replacing this set again." = "截图已上传，Apple 仍在处理。再次替换这组截图前，请先检查处理状态。";
+"Search app, version, or locale" = "搜索 App、版本或语言";
+"Showing %1$d of %2$d runs" = "显示 %1$d / %2$d 条记录";
+"The source or remote content changed. Your edited draft was kept; review the differences before syncing." = "源文件或远端内容已改变。已保留你编辑的草稿，请检查差异后再同步。";
+"This workspace draft file was created by a newer version of ShipNotes." = "此工作区草稿文件由更新版本的 ShipNotes 创建。";
+"Uploaded %1$d screenshot(s); Apple is still processing %2$d locale(s). Check processing status before uploading again." = "已上传 %1$d 张截图；Apple 仍在处理 %2$d 个语言。再次上传前，请先检查处理状态。";
+"Workspace drafts could not be opened. The existing draft file has been preserved. %@" = "无法打开工作区草稿。已保留原草稿文件。%@";
+"Workspace drafts could not be saved. Your edits are still available in this session. %@" = "无法保存工作区草稿。你的编辑仍保留在当前会话中。%@";

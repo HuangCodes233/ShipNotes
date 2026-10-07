@@ -13,6 +13,7 @@ A native macOS app for preparing and syncing localized App Store release notes, 
 - **Release notes:** import Markdown, YAML, JSON, and changelogs; map locales, compare changes, and validate drafts before syncing.
 - **Store copy:** edit descriptions, keywords, subtitles, promotional text, and store URLs across locales.
 - **Screenshots:** scan folders, check device sizes and locale coverage, and preview uploads or replacements.
+- **Local drafts and history:** restore edits for each account, app, and version; protect changes during synchronization; search and export history as JSON or CSV. [Behavior and storage](docs/reliability.md).
 - **Optional AI:** use your own OpenAI-compatible or Anthropic credentials for parsing, translation, copy optimization, and screenshot language matching.
 - **Apple Ads:** view reports and manage campaigns and keywords with separate credentials.
 - **Native interface:** English, Simplified Chinese, and Japanese; Liquid Glass on macOS 26 and later, with material fallbacks on older systems.
