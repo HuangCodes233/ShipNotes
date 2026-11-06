@@ -504,12 +504,17 @@ struct ScreenshotReliabilityTests {
         defer { try? FileManager.default.removeItem(at: folder) }
         for index in 0..<8 { try writeTinyPNG(color: .red, to: folder.appendingPathComponent("\(index).png")) }
         let probe = ScreenshotHashCancellationProbe()
-        let scanner = ScreenshotScanner { _ in try probe.hashUntilCancelled() }
-        let task = Task.detached { try await scanner.scan(url: folder) }
-        #expect(await waitUntil { probe.started == 4 })
-        task.cancel()
+        // This task inherits MainActor, so install the cancellation callback
+        // before the first suspension lets scanning begin. Cancel from inside
+        // the first hash instead of blocking four cooperative workers: small
+        // CI machines may have fewer than four workers available.
+        let task = Task {
+            try await ScreenshotScanner { _ in probe.hashAndCancelScan() }.scan(url: folder)
+        }
+        probe.cancelOnFirstHash { task.cancel() }
         await #expect(throws: CancellationError.self) { _ = try await task.value }
-        #expect(probe.started == 4)
+        #expect(probe.started >= 1)
+        #expect(probe.started <= 4)
     }
 
     @Test func oldHistoryPayloadStillDecodesWithoutSnapshotsOrProcessing() throws {
@@ -606,14 +611,22 @@ private final class ScreenshotMapProbe: @unchecked Sendable {
 private final class ScreenshotHashCancellationProbe: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
+    private var cancelScan: (@Sendable () -> Void)?
     var started: Int { lock.withLock { count } }
 
-    func hashUntilCancelled() throws -> String {
-        lock.withLock { count += 1 }
-        let deadline = Date().addingTimeInterval(3)
-        while !Task.isCancelled && Date() < deadline { Thread.sleep(forTimeInterval: 0.001) }
-        try Task.checkCancellation()
-        return "uncancelled"
+    func cancelOnFirstHash(_ cancel: @escaping @Sendable () -> Void) {
+        lock.withLock { cancelScan = cancel }
+    }
+
+    func hashAndCancelScan() -> String {
+        let cancel = lock.withLock {
+            count += 1
+            let callback = cancelScan
+            cancelScan = nil
+            return callback
+        }
+        cancel?()
+        return "fixture-hash"
     }
 }
 
