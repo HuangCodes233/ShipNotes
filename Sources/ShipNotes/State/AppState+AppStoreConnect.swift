@@ -106,7 +106,14 @@ extension AppState {
     /// "stopped before submitting without setting an error".
     @discardableResult
     func submitSelectedVersionForReview(releaseType: ReleaseType?) async -> Bool {
-        guard !isSubmittingForReview, !isSyncing, !isUploadingScreenshots else { return false }
+        guard !isSubmittingForReview, !isSyncing, !isUploadingScreenshots, !isLoadingRemote else { return false }
+        guard !isAIRunning, workspaceImportRequestsInFlight == 0, pendingImport == nil else {
+            setError(
+                L(
+                    "Wait for AI or source imports to finish and confirm any pending import before submitting for review."
+                ))
+            return false
+        }
         guard let service = appStoreService,
             let appId = selectedAppId,
             let version = selectedVersion
@@ -121,8 +128,27 @@ extension AppState {
             return false
         }
 
+        let reviewConnectionRequestID = appStoreConnectionRequestID
+        let reviewAccountID = workspaceDraftAccountID
+        let reviewSyncGeneration = syncGeneration
+        func isCurrentReviewTarget() -> Bool {
+            !Task.isCancelled && selectedAppId == appId && selectedVersionId == version.id
+                && appStoreConnectionRequestID == reviewConnectionRequestID
+                && workspaceDraftAccountID == reviewAccountID && syncGeneration == reviewSyncGeneration
+        }
+        reviewBlockedWorkspaceChange = false
         isSubmittingForReview = true
-        defer { isSubmittingForReview = false }
+        defer {
+            isSubmittingForReview = false
+            isFinalizingReviewSubmission = false
+            if reviewBlockedWorkspaceChange {
+                setError(
+                    L(
+                        "An edit or import arrived while review submission was in progress and was not applied. Review the version state before trying again."
+                    ))
+                reviewBlockedWorkspaceChange = false
+            }
+        }
         // Any message now in `lastError` predates this attempt.
         clearLastErrorPreservingWorkspaceDraftError()
 
@@ -148,7 +174,8 @@ extension AppState {
             return false
         }
         if !pendingLocales.isEmpty {
-            let ok = await syncLiveLocales(pendingLocales)
+            let ok = await syncLiveLocales(pendingLocales, generation: reviewSyncGeneration)
+            guard isCurrentReviewTarget() else { return false }
             // Release-note sync marks failed rows but leaves the banner alone.
             guard ok else {
                 if lastError == nil {
@@ -172,7 +199,8 @@ extension AppState {
             .filter { $0.changedFieldCount > 0 || $0.status == .invalid || $0.status == .overLimit }
             .map(\.locale)
         if !pendingStoreCopy.isEmpty {
-            let ok = await syncLiveStoreCopyLocales(pendingStoreCopy)
+            let ok = await syncLiveStoreCopyLocales(pendingStoreCopy, generation: reviewSyncGeneration)
+            guard isCurrentReviewTarget() else { return false }
             guard ok else {
                 if lastError == nil {
                     setError(
@@ -189,7 +217,7 @@ extension AppState {
 
         // Edits made during either awaited sync remain drafts. Require another
         // review attempt instead of locking the version with those edits unsent.
-        guard selectedAppId == appId, selectedVersionId == version.id else { return false }
+        guard isCurrentReviewTarget() else { return false }
         guard !localeNotes.contains(where: { transformedTextForSync($0.localText) != ($0.remoteText ?? "") }) else {
             setError(
                 L(
@@ -211,14 +239,43 @@ extension AppState {
             return false
         }
 
+        let reviewedRevision = workspaceContentRevision
         do {
             if let releaseType {
                 try await service.updateVersion(versionId: version.id, releaseType: releaseType.rawValue)
             }
+            // Release-type updates suspend too. Reconfirm exactly the workspace
+            // the user reviewed before entering the irreversible API phase.
+            guard isCurrentReviewTarget() else { return false }
+            guard !isAIRunning, workspaceImportRequestsInFlight == 0, pendingImport == nil else {
+                setError(
+                    L(
+                        "Wait for AI or source imports to finish and confirm any pending import before submitting for review."
+                    ))
+                return false
+            }
+            guard workspaceContentRevision == reviewedRevision, !isLoadingRemote, !isSyncing, !isUploadingScreenshots,
+                !localeNotes.contains(where: { transformedTextForSync($0.localText) != ($0.remoteText ?? "") }),
+                !storeCopyLocales.contains(where: {
+                    $0.changedFieldCount > 0 || $0.status == .invalid || $0.status == .overLimit
+                })
+            else {
+                setError(
+                    L(
+                        "The workspace changed while preparing review submission. Review the latest draft and submit again."
+                    ))
+                return false
+            }
+            isFinalizingReviewSubmission = true
             let platform = Self.apiPlatformValue(from: version.platform) ?? "IOS"
             _ = try await service.submitForReview(appId: appId, versionId: version.id, platform: platform)
+            // The request may already have succeeded if navigation or a
+            // connection replacement happened outside normal UI entry points.
+            // Do not install this account's response into the new workspace.
+            guard isCurrentReviewTarget() else { return true }
             // Refresh versions so the picker shows the new state ("WAITING_FOR_REVIEW").
             let refreshed = try await service.fetchVersions(appId: appId)
+            guard isCurrentReviewTarget() else { return true }
             versionsByApp[appId] = refreshed
             clearLastErrorPreservingWorkspaceDraftError()
             if isAppleAdsConfigured {
@@ -226,13 +283,16 @@ extension AppState {
             }
             return true
         } catch {
+            guard isCurrentReviewTarget() else { return false }
             if await recoverSubmittedVersionState(service: service, appId: appId, versionId: version.id) {
+                guard isCurrentReviewTarget() else { return true }
                 clearLastErrorPreservingWorkspaceDraftError()
                 if isAppleAdsConfigured {
                     offerPromoteAfterSubmit = true
                 }
                 return true
             }
+            guard isCurrentReviewTarget() else { return false }
             handleError(error)
             return false
         }
@@ -243,8 +303,14 @@ extension AppState {
         appId: String,
         versionId: String
     ) async -> Bool {
+        let connectionRequestID = appStoreConnectionRequestID
+        let accountID = workspaceDraftAccountID
+        let generation = syncGeneration
         do {
             let refreshed = try await service.fetchVersions(appId: appId)
+            guard appStoreConnectionRequestID == connectionRequestID, workspaceDraftAccountID == accountID,
+                syncGeneration == generation, selectedAppId == appId, selectedVersionId == versionId
+            else { return false }
             versionsByApp[appId] = refreshed
             return refreshed.first { $0.id == versionId }?.appStoreState.isSubmittedForReview == true
         } catch {
@@ -344,6 +410,7 @@ extension AppState {
     /// Returns whether the build change was accepted by App Store Connect.
     @discardableResult
     func setBuildForSelectedVersion(_ buildId: String?) async -> Bool {
+        guard allowWorkspaceMutation() else { return false }
         guard let service = appStoreService, let versionId = selectedVersionId else {
             setError(L("Connect App Store Connect before choosing a build."))
             return false
@@ -555,11 +622,10 @@ extension AppState {
     }
 
     func selectMockApp(_ id: String) {
+        guard allowWorkspaceMutation() else { return }
         guard selectedAppId != id else { return }
         saveCurrentWorkspaceDraft()
-        if selectedAppId != id {
-            resetScreenshotWorkspace()
-        }
+        resetScreenshotWorkspace()
         selectedAppId = id
         selectedVersionId = nil
         resetWorkspaceSelection()
@@ -575,6 +641,7 @@ extension AppState {
     }
 
     func selectMockVersion(_ id: String) {
+        guard allowWorkspaceMutation() else { return }
         guard selectedVersionId != id else { return }
         saveCurrentWorkspaceDraft()
         selectedVersionId = id
@@ -592,13 +659,12 @@ extension AppState {
     }
 
     func selectLiveApp(_ id: String) async {
+        guard allowWorkspaceMutation() else { return }
         guard selectedAppId != id else { return }
         guard let service = appStoreService else { return }
         saveCurrentWorkspaceDraft()
         let requestedAppId = id
-        if selectedAppId != id {
-            resetScreenshotWorkspace()
-        }
+        resetScreenshotWorkspace()
         selectedAppId = id
         selectedVersionId = nil
         resetWorkspaceSelection()
@@ -658,6 +724,7 @@ extension AppState {
     }
 
     func selectLiveVersion(_ id: String, resetSource: Bool) async {
+        guard allowWorkspaceMutation() else { return }
         guard selectedVersionId != id else { return }
         guard let service = appStoreService else { return }
         saveCurrentWorkspaceDraft()
@@ -687,13 +754,17 @@ extension AppState {
         do {
             let remoteNotes = try await service.fetchLocalizations(versionId: id)
             guard selectedAppId == requestedAppId, selectedVersionId == requestedVersionId else { return }
-            remoteNotesByLocale = Dictionary(uniqueKeysWithValues: remoteNotes.map { ($0.locale, $0) })
+            // ASC can briefly return the same localization twice mid-update;
+            // crashing on duplicates would take the whole workspace down.
+            remoteNotesByLocale = Dictionary(
+                remoteNotes.map { ($0.locale, $0) }, uniquingKeysWith: { first, _ in first })
             clearLastErrorPreservingWorkspaceDraftError()
             applyLocalAndRemote(locales: [:], sourceFiles: [:], useRemoteAsLocalWhenMissing: true)
+            // Establish this version's draft and baseline before exposing an
+            // awaited build lookup to edits from any shared window.
+            restoreCurrentWorkspaceDraft()
             refreshRemoteScreenshotCountsIfNeeded()
             await refreshAttachedBuild(versionId: id, surfaceErrors: true)
-            guard selectedAppId == requestedAppId, selectedVersionId == requestedVersionId else { return }
-            restoreCurrentWorkspaceDraft()
         } catch {
             guard selectedAppId == requestedAppId, selectedVersionId == requestedVersionId else { return }
             handleError(error)
@@ -747,6 +818,7 @@ extension AppState {
     }
 
     func bootstrapWithMockData() {
+        guard allowWorkspaceMutation() else { return }
         saveCurrentWorkspaceDraft()
         // Inject the in-memory service so sync/create/submit share the live
         // code path. `isUsingMockData` still gates UI that must not hit Apple.
@@ -777,8 +849,12 @@ extension AppState {
         name: String, issuerId: String, keyId: String, privateKeyPEM: String,
         candidateService: (any AppStoreConnectServicing)? = nil
     ) async -> Bool {
+        guard allowWorkspaceMutation() else { return false }
         do {
-            let existingPrivateKey = try credentialStore.load()?.privateKeyPEM ?? ""
+            let store = credentialStore
+            let existingPrivateKey = try await Task.detached(priority: .userInitiated) { () throws -> String in
+                try store.load()?.privateKeyPEM ?? ""
+            }.value
             let trimmedPrivateKey = privateKeyPEM.trimmingCharacters(in: .whitespacesAndNewlines)
             let credentials = try AppStoreConnectCredentials(
                 name: name,
@@ -797,9 +873,14 @@ extension AppState {
 
     @discardableResult
     func testConnection(candidateService: (any AppStoreConnectServicing)? = nil) async -> Bool {
+        guard allowWorkspaceMutation() else { return false }
         do {
+            let store = credentialStore
+            let stored = try await Task.detached(priority: .userInitiated) { () throws -> AppStoreConnectCredentials? in
+                try store.load()
+            }.value
             let credentials: AppStoreConnectCredentials
-            if let stored = try credentialStore.load() {
+            if let stored {
                 credentials = stored
             } else {
                 throw AppStoreConnectCredentialError.missingPrivateKey
@@ -821,6 +902,7 @@ extension AppState {
         service suppliedService: (any AppStoreConnectServicing)? = nil,
         requestID suppliedRequestID: UUID? = nil
     ) async -> Bool {
+        guard allowWorkspaceMutation() else { return false }
         let requestID = suppliedRequestID ?? UUID()
         appStoreConnectionRequestID = requestID
         let candidate = suppliedService ?? AppStoreConnectClient(credentials: credentials)
@@ -832,7 +914,14 @@ extension AppState {
             try await candidate.validateCredentials()
             let candidateApps = try await candidate.fetchApps()
             guard !Task.isCancelled, appStoreConnectionRequestID == requestID else { return false }
-            if persist { try credentialStore.save(credentials) }
+            guard allowWorkspaceMutation() else { return false }
+            if persist {
+                let store = credentialStore
+                try await Task.detached(priority: .userInitiated) { try store.save(credentials) }.value
+            }
+
+            guard !Task.isCancelled, appStoreConnectionRequestID == requestID else { return false }
+            guard allowWorkspaceMutation() else { return false }
 
             saveCurrentWorkspaceDraft()
             configureLiveClient(credentials, service: candidate)
@@ -856,6 +945,7 @@ extension AppState {
     }
 
     func removeCredentials() {
+        guard allowWorkspaceMutation() else { return }
         do {
             try credentialStore.delete()
             appStoreConnectionRequestID = UUID()
@@ -867,6 +957,7 @@ extension AppState {
     }
 
     func selectApp(_ id: String) {
+        guard allowWorkspaceMutation() else { return }
         // Branch on `isUsingMockData`, not `appStoreService == nil`. Sample
         // mode now has a service, but selection must still load local drafts
         // that differ from remote so the first-run diff is visible.
@@ -878,6 +969,7 @@ extension AppState {
     }
 
     func selectVersion(_ id: String) {
+        guard allowWorkspaceMutation() else { return }
         if isUsingMockData {
             selectMockVersion(id)
         } else {
@@ -889,8 +981,12 @@ extension AppState {
         guard let appId = selectedAppId else { return }
         if isUsingMockData {
             Task {
-                if let versions = try? await appStoreService?.fetchVersions(appId: appId) {
+                do {
+                    guard let versions = try await appStoreService?.fetchVersions(appId: appId) else { return }
+                    guard selectedAppId == appId else { return }
                     versionsByApp[appId] = versions
+                } catch {
+                    handleError(error)
                 }
             }
         } else {

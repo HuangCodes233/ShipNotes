@@ -4,6 +4,19 @@ import Foundation
 /// OpenAI and Anthropic speak different HTTP shapes, but both eventually
 /// produce a JSON object with `locales` / `translated_text` / store-copy fields.
 enum AIResponseParsing {
+    /// URLs are identity fields for the user's account/web presence. The
+    /// model can see them for context, but ShipNotes never accepts invented
+    /// replacements from AI.
+    static func restoringOriginalURLs(
+        _ metadata: StoreMetadataFields, from original: StoreMetadataFields
+    ) -> StoreMetadataFields {
+        var restored = metadata
+        restored.supportURL = original.supportURL
+        restored.marketingURL = original.marketingURL
+        restored.privacyPolicyURL = original.privacyPolicyURL
+        return restored
+    }
+
     static func jsonObject(from content: String) throws -> [String: Any] {
         if let json = jsonObjectIfPossible(from: content) {
             return json

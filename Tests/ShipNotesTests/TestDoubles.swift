@@ -5,6 +5,15 @@ import Foundation
 // inside a single feature file.
 
 final class MockASCService: AppStoreConnectServicing, @unchecked Sendable {
+    // Parallel sync paths (mapConcurrently) hit the double concurrently, so
+    // mutations are serialized; asserts on counters stay exact. The lock is
+    // only held across synchronous sections.
+    private let lock = NSLock()
+    private func locked<T>(_ body: () throws -> T) rethrows -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return try body()
+    }
     var builds: [Build] = []
     var allBuildsByApp: [String: [Build]] = [:]
     var fetchAllBuildsDelayNanosecondsByApp: [String: UInt64] = [:]
@@ -42,7 +51,7 @@ final class MockASCService: AppStoreConnectServicing, @unchecked Sendable {
         fetchedVersionsByApp[appId] ?? fetchedVersions
     }
     func fetchLocalizations(versionId: String) async throws -> [RemoteLocaleNote] {
-        fetchLocalizationsCallCount += 1
+        locked { fetchLocalizationsCallCount += 1 }
         if let delay = fetchLocalizationDelayNanosecondsByVersion[versionId], delay > 0 {
             try? await Task.sleep(nanoseconds: delay)
         }
@@ -57,16 +66,19 @@ final class MockASCService: AppStoreConnectServicing, @unchecked Sendable {
             // cancel path depends on that propagating.
             try await Task.sleep(nanoseconds: updateWhatsNewDelayNanoseconds)
         }
-        lastUpdatedWhatsNew = (localizationId, text)
-        let locale = fetchedLocalizations.first { $0.localizationId == localizationId }?.locale ?? "en-US"
-        let metadata = fetchedLocalizations.first { $0.localizationId == localizationId }?.storeMetadata ?? .empty
-        return RemoteLocaleNote(localizationId: localizationId, locale: locale, text: text, storeMetadata: metadata)
+        locked { lastUpdatedWhatsNew = (localizationId, text) }
+        let remote = fetchedLocalizations.first { $0.localizationId == localizationId }
+        return RemoteLocaleNote(
+            localizationId: localizationId,
+            locale: remote?.locale ?? "en-US",
+            text: text,
+            storeMetadata: remote?.storeMetadata ?? .empty)
     }
     func updateStoreMetadata(localizationId: String, metadata: StoreMetadataFields) async throws -> RemoteLocaleNote {
         if let updateStoreMetadataError {
             throw updateStoreMetadataError
         }
-        lastUpdatedStoreMetadata = metadata
+        locked { lastUpdatedStoreMetadata = metadata }
         var returned = metadata
         // Simulate Apple's response for this endpoint: version-localization
         // fields (incl. subtitle) are echoed back, but app-info–level fields
@@ -88,18 +100,22 @@ final class MockASCService: AppStoreConnectServicing, @unchecked Sendable {
         if let updateStoreMetadataFieldError {
             throw updateStoreMetadataFieldError
         }
-        lastUpdatedStoreMetadataField = (field, value)
-        var metadata =
-            lastUpdatedStoreMetadata
-            ?? StoreMetadataFields(
-                description: "Remote description",
-                keywords: "remote,keywords",
-                promotionalText: "Remote promo",
-                supportURL: "https://example.com/support",
-                marketingURL: "https://example.com"
-            )
-        metadata.setValue(value, for: field)
-        lastUpdatedStoreMetadata = metadata
+        let metadata: StoreMetadataFields = locked {
+            let base =
+                lastUpdatedStoreMetadata
+                ?? StoreMetadataFields(
+                    description: "Remote description",
+                    keywords: "remote,keywords",
+                    promotionalText: "Remote promo",
+                    supportURL: "https://example.com/support",
+                    marketingURL: "https://example.com"
+                )
+            var updated = base
+            updated.setValue(value, for: field)
+            lastUpdatedStoreMetadata = updated
+            lastUpdatedStoreMetadataField = (field, value)
+            return updated
+        }
         let remote = fetchedLocalizations.first { $0.localizationId == localizationId }
         return RemoteLocaleNote(
             localizationId: localizationId,
@@ -109,7 +125,7 @@ final class MockASCService: AppStoreConnectServicing, @unchecked Sendable {
         )
     }
     func createLocalization(versionId: String, locale: String, text: String) async throws -> RemoteLocaleNote {
-        createLocalizationCallCount += 1
+        locked { createLocalizationCallCount += 1 }
         if let createLocalizationError {
             throw createLocalizationError
         }
@@ -128,12 +144,14 @@ final class MockASCService: AppStoreConnectServicing, @unchecked Sendable {
         return allBuildsByApp[appId] ?? builds
     }
     func fetchAttachedBuild(versionId: String) async throws -> Build? {
-        fetchAttachedBuildCallCount += 1
+        locked { fetchAttachedBuildCallCount += 1 }
         return attachedBuild
     }
     func setBuild(_ buildId: String?, forVersion versionId: String) async throws {
-        lastAttachedBuildId = buildId
-        attachedBuild = builds.first { $0.id == buildId }
+        locked {
+            lastAttachedBuildId = buildId
+            attachedBuild = builds.first { $0.id == buildId }
+        }
     }
 
     var lastReleaseType: String?
@@ -151,12 +169,14 @@ final class MockASCService: AppStoreConnectServicing, @unchecked Sendable {
         if let replaceScreenshotsError {
             throw replaceScreenshotsError
         }
-        replacedScreenshots.append(
-            (
-                localizationId: localizationId,
-                displayType: displayType,
-                fileNames: files.map(\.lastPathComponent)
-            ))
+        locked {
+            replacedScreenshots.append(
+                (
+                    localizationId: localizationId,
+                    displayType: displayType,
+                    fileNames: files.map(\.lastPathComponent)
+                ))
+        }
         for (index, file) in files.enumerated() {
             onProgress?(index, files.count, file.lastPathComponent)
         }
@@ -173,13 +193,15 @@ final class MockASCService: AppStoreConnectServicing, @unchecked Sendable {
     }
 
     func resumeScreenshotProcessing(_ reservation: ScreenshotProcessingReservation) async throws -> Int {
-        resumedScreenshotProcessing.append(reservation)
+        locked { resumedScreenshotProcessing.append(reservation) }
         if let resumeScreenshotProcessingError { throw resumeScreenshotProcessingError }
         return reservation.uploaded.count
     }
     func submitForReview(appId: String, versionId: String, platform: String) async throws -> String {
-        submitForReviewCalled = true
-        lastSubmitPlatform = platform
+        locked {
+            submitForReviewCalled = true
+            lastSubmitPlatform = platform
+        }
         if let submitForReviewError {
             throw submitForReviewError
         }

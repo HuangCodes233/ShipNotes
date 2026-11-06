@@ -76,6 +76,22 @@ struct ReleaseNotesParser {
     let mapper = LocaleMapper()
     let yaml = MinimalYAML()
 
+    /// Shared precompiled version pattern: `range(of:options:.regularExpression)`
+    /// recompiles the pattern on every call, and version headings are scanned
+    /// per line in several parsers.
+    static let versionPattern = try! NSRegularExpression(pattern: #"v?(\d+\.\d+(?:\.\d+)?)"#)
+
+    /// First version-looking match in `text`, with a leading `v` stripped.
+    static func firstVersionMatch(in text: String) -> String? {
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = versionPattern.firstMatch(in: text, range: range),
+            let whole = Range(match.range, in: text)
+        else { return nil }
+        var s = String(text[whole])
+        if s.lowercased().hasPrefix("v") { s.removeFirst() }
+        return s
+    }
+
     func parse(url: URL, currentVersion: String? = nil, defaultLocale: String? = nil) throws -> ParsedReleaseNotes {
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else {

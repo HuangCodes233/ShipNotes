@@ -130,26 +130,40 @@ struct OpenAIScreenshotVisionAIService: ScreenshotVisionAIService {
     let urlSession: URLSession
     let baseURL: URL
     let model: String
-    private let cachedKey: String?
+    let apiFormat: OpenAIAPIFormat
+    private let transport: AIHTTPTransport
 
     init(
         keychainStore: any AIKeychainStoring = AIKeychainStore(),
         urlSession: URLSession = AIRequestPolicy.ephemeralSession,
         baseURL: URL = AIProvider.openai.defaultBaseURL,
         model: String = AIProvider.openai.defaultModel(for: .vision),
+        apiFormat: OpenAIAPIFormat = .chatCompletions,
         cachedKey: String? = nil
     ) {
         self.keychainStore = keychainStore
         self.urlSession = urlSession
         self.baseURL = baseURL
         self.model = model.isEmpty ? AIProvider.openai.defaultModel(for: .vision) : model
-        self.cachedKey = cachedKey?.isEmpty == false ? cachedKey : nil
+        self.apiFormat = apiFormat
+        self.transport = AIHTTPTransport(
+            session: urlSession, keychainStore: keychainStore, cachedKey: cachedKey)
     }
 
     var isConfigured: Bool {
-        if let cachedKey, !cachedKey.isEmpty { return true }
-        guard let key = try? keychainStore.load(for: .openai, role: .vision) else { return false }
-        return !key.isEmpty
+        transport.isConfigured(provider: .openai, role: .vision)
+    }
+
+    func testConnection() async throws {
+        let body: [String: Any] = [
+            "model": model,
+            // Responses budgets include reasoning tokens. A tiny cap can
+            // reject a working reasoning model before it emits the short reply.
+            "max_tokens": apiFormat == .responses ? 4096 : 256,
+            "messages": [["role": "user", "content": "Reply with exactly OK."]],
+        ]
+        let response = try await post(body: body)
+        _ = try OpenAIAPIAdapter.text(from: response, format: apiFormat)
     }
 
     func classifyScreenshotLocales(
@@ -184,53 +198,29 @@ struct OpenAIScreenshotVisionAIService: ScreenshotVisionAIService {
         let body: [String: Any] = [
             "model": model,
             "temperature": 0,
+            // Explicit cap so a truncated batch is detectable through
+            // `finish_reason: "length"` instead of surfacing as a JSON parse
+            // error. 12 compact assignments fit comfortably.
+            "max_tokens": 4096,
             "response_format": ["type": "json_object"],
             "messages": [
                 ["role": "user", "content": content]
             ],
         ]
-        let data = try await post(body: body)
-        let contentText = try Self.extractContent(data)
+        let json = try await post(body: body)
+        let contentText = try OpenAIAPIAdapter.text(from: json, format: apiFormat)
         return try Self.parseAssignments(contentText)
     }
 
-    private func post(body: [String: Any]) async throws -> Data {
-        var request = URLRequest(url: AIEndpointResolver.openAIChatCompletions(from: baseURL))
-        request.httpMethod = "POST"
-        request.timeoutInterval = AIRequestPolicy.requestTimeout
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(try resolveAPIKey())", forHTTPHeaderField: "Authorization")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response) = try await AIRequestPolicy.data(for: request, session: urlSession)
-        guard let http = response as? HTTPURLResponse else {
-            throw AIServiceError.invalidResponse("Non-HTTP response")
-        }
-        try Self.validate(statusCode: http.statusCode, data: data)
-        return data
+    private func post(body: [String: Any]) async throws -> [String: Any] {
+        try await transport.postJSON(
+            url: AIEndpointResolver.openAI(from: baseURL, format: apiFormat),
+            body: OpenAIAPIAdapter.requestBody(fromChatBody: body, format: apiFormat),
+            provider: .openai,
+            role: .vision,
+            headers: { ["Authorization": "Bearer \($0)"] })
     }
 
-    private func resolveAPIKey() throws -> String {
-        if let cachedKey, !cachedKey.isEmpty { return cachedKey }
-        guard let key = try keychainStore.load(for: .openai, role: .vision), !key.isEmpty else {
-            throw AIServiceError.missingAPIKey
-        }
-        return key
-    }
-
-    private static func extractContent(_ data: Data) throws -> String {
-        struct Response: Decodable {
-            struct Choice: Decodable {
-                struct Message: Decodable { let content: String? }
-                let message: Message
-            }
-            let choices: [Choice]
-        }
-        guard let content = try JSONDecoder().decode(Response.self, from: data).choices.first?.message.content else {
-            throw AIServiceError.invalidResponse("Vision response has no content")
-        }
-        return content
-    }
 }
 
 struct AnthropicScreenshotVisionAIService: ScreenshotVisionAIService {
@@ -238,7 +228,7 @@ struct AnthropicScreenshotVisionAIService: ScreenshotVisionAIService {
     let urlSession: URLSession
     let baseURL: URL
     let model: String
-    private let cachedKey: String?
+    private let transport: AIHTTPTransport
 
     init(
         keychainStore: any AIKeychainStoring = AIKeychainStore(),
@@ -251,13 +241,24 @@ struct AnthropicScreenshotVisionAIService: ScreenshotVisionAIService {
         self.urlSession = urlSession
         self.baseURL = baseURL
         self.model = model.isEmpty ? AIProvider.anthropic.defaultModel(for: .vision) : model
-        self.cachedKey = cachedKey?.isEmpty == false ? cachedKey : nil
+        self.transport = AIHTTPTransport(
+            session: urlSession, keychainStore: keychainStore, cachedKey: cachedKey)
     }
 
     var isConfigured: Bool {
-        if let cachedKey, !cachedKey.isEmpty { return true }
-        guard let key = try? keychainStore.load(for: .anthropic, role: .vision) else { return false }
-        return !key.isEmpty
+        transport.isConfigured(provider: .anthropic, role: .vision)
+    }
+
+    func testConnection() async throws {
+        let response = try await post(body: [
+            "model": model,
+            "max_tokens": 256,
+            "messages": [["role": "user", "content": "Reply with exactly OK."]],
+        ])
+        let text = try Self.extractContent(response)
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw AIServiceError.invalidResponse("Vision response has no text content")
+        }
     }
 
     func classifyScreenshotLocales(
@@ -303,47 +304,30 @@ struct AnthropicScreenshotVisionAIService: ScreenshotVisionAIService {
                 ["role": "user", "content": content]
             ],
         ]
-        let data = try await post(body: body)
-        let contentText = try Self.extractContent(data)
+        let json = try await post(body: body)
+        let contentText = try Self.extractContent(json)
         return try Self.parseAssignments(contentText)
     }
 
-    private func post(body: [String: Any]) async throws -> Data {
-        var request = URLRequest(url: AIEndpointResolver.anthropicMessages(from: baseURL))
-        request.httpMethod = "POST"
-        request.timeoutInterval = AIRequestPolicy.requestTimeout
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(try resolveAPIKey(), forHTTPHeaderField: "x-api-key")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        request.setValue("prompt-caching-2024-07-31", forHTTPHeaderField: "anthropic-beta")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response) = try await AIRequestPolicy.data(for: request, session: urlSession)
-        guard let http = response as? HTTPURLResponse else {
-            throw AIServiceError.invalidResponse("Non-HTTP response")
-        }
-        try Self.validate(statusCode: http.statusCode, data: data)
-        return data
+    private func post(body: [String: Any]) async throws -> [String: Any] {
+        try await transport.postJSON(
+            url: AIEndpointResolver.anthropicMessages(from: baseURL),
+            body: body,
+            provider: .anthropic,
+            role: .vision,
+            headers: { apiKey in
+                [
+                    "x-api-key": apiKey,
+                    "anthropic-version": "2023-06-01",
+                    "anthropic-beta": "prompt-caching-2024-07-31",
+                ]
+            })
     }
 
-    private func resolveAPIKey() throws -> String {
-        if let cachedKey, !cachedKey.isEmpty { return cachedKey }
-        guard let key = try keychainStore.load(for: .anthropic, role: .vision), !key.isEmpty else {
-            throw AIServiceError.missingAPIKey
-        }
-        return key
-    }
-
-    private static func extractContent(_ data: Data) throws -> String {
-        struct Response: Decodable {
-            struct ContentBlock: Decodable {
-                let type: String
-                let text: String?
-            }
-            let content: [ContentBlock]
-        }
-        let response = try JSONDecoder().decode(Response.self, from: data)
-        guard let text = response.content.first(where: { $0.type == "text" })?.text else {
+    private static func extractContent(_ json: [String: Any]) throws -> String {
+        guard let blocks = json["content"] as? [[String: Any]],
+            let text = blocks.first(where: { $0["type"] as? String == "text" })?["text"] as? String
+        else {
             throw AIServiceError.invalidResponse("Vision response has no text content")
         }
         return text
@@ -371,17 +355,8 @@ private extension ScreenshotVisionAIService {
         }
     }
 
-    static func validate(statusCode: Int, data: Data) throws {
-        try AIRequestPolicy.validate(statusCode: statusCode, data: data)
-    }
-
     static func jsonData(from content: String) throws -> Data {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let data = trimmed.data(using: .utf8),
-            (try? JSONDecoder().decode(ScreenshotVisionAssignmentsResponse.self, from: data)) != nil
-        {
-            return data
-        }
         guard let start = trimmed.firstIndex(of: "{"),
             let end = trimmed.lastIndex(of: "}"),
             start <= end

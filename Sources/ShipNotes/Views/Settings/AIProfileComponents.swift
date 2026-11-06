@@ -47,6 +47,7 @@ struct AIProfileFields: View {
     @Binding var apiKey: String
     @Binding var baseURL: String
     @Binding var model: String
+    @Binding var apiFormat: OpenAIAPIFormat
     let role: AIProfileRole
     let providers: [AIProvider]
     let onProviderChange: (AIProvider) -> Void
@@ -76,11 +77,56 @@ struct AIProfileFields: View {
                 TextField(provider.defaultBaseURL.absoluteString, text: $baseURL)
                     .textFieldStyle(.roundedBorder)
             }
+            if provider == .openai {
+                GridRow {
+                    Text(L("API Format")).foregroundStyle(.secondary)
+                    Picker("", selection: $apiFormat) {
+                        ForEach(OpenAIAPIFormat.allCases) { format in
+                            Text(format.displayName).tag(format)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 360)
+                    .help(L("Choose the request format supported by your provider or gateway."))
+                }
+            }
+            if let endpoint = AIProfileEndpointPreview.url(provider: provider, baseURL: baseURL, format: apiFormat) {
+                GridRow {
+                    Text(L("Request URL")).foregroundStyle(.secondary)
+                    Text(endpoint)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .lineLimit(2)
+                }
+            }
             GridRow {
                 Text(L("Model")).foregroundStyle(.secondary)
                 TextField(provider.defaultModel(for: role), text: $model)
                     .textFieldStyle(.roundedBorder)
             }
         }
+    }
+}
+
+enum AIProfileEndpointPreview {
+    static func url(provider: AIProvider, baseURL: String, format: OpenAIAPIFormat) -> String? {
+        let trimmed = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard provider != .none,
+            let base = trimmed.isEmpty ? provider.defaultBaseURL : URL(string: trimmed),
+            base.scheme != nil, base.host != nil
+        else { return nil }
+        let endpoint: URL
+        switch provider {
+        case .openai: endpoint = AIEndpointResolver.openAI(from: base, format: format)
+        case .anthropic: endpoint = AIEndpointResolver.anthropicMessages(from: base)
+        case .none: return nil
+        }
+        var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)
+        components?.user = nil
+        components?.password = nil
+        components?.query = nil
+        components?.fragment = nil
+        return components?.url?.absoluteString
     }
 }

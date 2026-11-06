@@ -9,6 +9,14 @@ struct LocaleMapper {
         "sv", "th", "tr", "uk", "vi",
     ]
 
+    /// O(1) membership for `resolve`, the hottest locale lookup: it runs for
+    /// every path component of every scanned screenshot and every heading in
+    /// every parsed file.
+    private static let appStoreLocaleSet: Set<String> = Set(appStoreLocales)
+    /// Case-folded mirrors for `isLocaleShaped`'s per-token checks.
+    private static let appStoreLocalesLowercased: Set<String> = Set(appStoreLocales.map { $0.lowercased() })
+    private static let aliasKeysLowercased: Set<String> = Set(aliases.keys.map { $0.lowercased() })
+
     static let aliases: [String: String] = [
         "en": "en-US",
         "zh": "zh-Hans",
@@ -41,10 +49,10 @@ struct LocaleMapper {
 
     func resolve(_ rawLocale: String) -> String? {
         let normalized = normalize(rawLocale)
-        if Self.appStoreLocales.contains(normalized) { return normalized }
+        if Self.appStoreLocaleSet.contains(normalized) { return normalized }
         if let mapped = Self.aliases[normalized] { return mapped }
         let lang = normalized.split(separator: "-").first.map(String.init) ?? normalized
-        if Self.appStoreLocales.contains(lang) { return lang }
+        if Self.appStoreLocaleSet.contains(lang) { return lang }
         return Self.languageFallbacks[lang]
     }
 
@@ -181,10 +189,8 @@ struct LocaleMapper {
         guard parts.count > 1 else { return allowsBareLanguage }
 
         let second = parts[1]
-        let pair = "\(language.lowercased())-\(second)"
-        if appStoreLocales.contains(where: { $0.caseInsensitiveCompare(pair) == .orderedSame })
-            || aliases.keys.contains(where: { $0.caseInsensitiveCompare(pair) == .orderedSame })
-        {
+        let pair = "\(language.lowercased())-\(second)".lowercased()
+        if appStoreLocalesLowercased.contains(pair) || aliasKeysLowercased.contains(pair) {
             return true
         }
         if let region = ambiguousLanguageRegions[language.lowercased()] {

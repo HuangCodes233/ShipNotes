@@ -71,6 +71,8 @@ locales:
 
 在“设置 → 账号”中填写 App Store Connect 的 Issuer ID、Key ID 和 `.p8` 私钥。需要 AI 或 Apple Ads 时，分别配置对应凭据。向真实服务写入前，请核对目标应用、版本、语言和待提交内容。
 
+在“设置 → AI 助手”中，OpenAI 兼容配置支持 **Chat Completions** 和 **Responses** 两种 API 格式。请按服务端支持情况选择；文本 AI 与视觉 AI 可以分别设置，已有配置继续使用 Chat Completions。修改后先保存再测试连接，并核对界面显示的请求地址。图片识别还需要所选模型支持图片输入。配置示例与兼容说明见 [AI 接口配置](docs/ai-configuration.md)。
+
 凭据保存在 macOS 钥匙串中；偏好设置、路径和同步历史保存在本机。AI 操作会将输入文本或截图缩略图发送给配置的服务商；自定义端点会收到该配置的请求和凭据。处理私密素材前，请阅读[凭据与数据流说明](docs/privacy-and-data.md)。
 
 ## 开发

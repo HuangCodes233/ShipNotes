@@ -46,6 +46,7 @@ extension AppState {
         isCheckingScreenshotProcessing = true
         defer { isCheckingScreenshotProcessing = false }
         var failures: [String] = []
+        var failureCategory: AppError.Category = .appStoreConnect
         var outcomes: [String: LocaleSyncResult] = [:]
         let checks = await mapConcurrently(pending, maxConcurrent: 4) { record -> Result<Int, any Error> in
             do { return .success(try await service.resumeScreenshotProcessing(record.reservation)) } catch {
@@ -62,6 +63,21 @@ extension AppState {
                 updated.reservation = error.reservation
                 pendingScreenshotProcessing[record.key] = updated
                 if case .failed? = outcomes[record.locale] {} else { outcomes[record.locale] = .processing }
+            } catch let error as ScreenshotProcessingRequestError {
+                if error.remoteSetConfirmedMissing {
+                    pendingScreenshotProcessing.removeValue(forKey: record.key)
+                    outcomes[record.locale] = .failed(error.localizedDescription)
+                } else {
+                    var updated = record
+                    updated.reservation = error.reservation
+                    pendingScreenshotProcessing[record.key] = updated
+                    if case .failed? = outcomes[record.locale] {} else { outcomes[record.locale] = .processing }
+                }
+                if !Self.isCancellation(error.underlyingError) {
+                    failures.append("\(record.locale): \(error.localizedDescription)")
+                    let category = Self.screenshotRequestErrorCategory(error.underlyingError)
+                    if failureCategory != .auth { failureCategory = category }
+                }
             } catch let error as AppStoreConnectClientError {
                 // A confirmed processing rejection is terminal. Other errors
                 // leave the IDs intact so another check can recover.
@@ -69,12 +85,18 @@ extension AppState {
                     pendingScreenshotProcessing.removeValue(forKey: record.key)
                     outcomes[record.locale] = .failed(error.localizedDescription)
                 } else {
-                    outcomes[record.locale] = .processing
+                    if case .failed? = outcomes[record.locale] {} else { outcomes[record.locale] = .processing }
                 }
                 failures.append("\(record.locale): \(error.localizedDescription)")
+                let category = Self.screenshotRequestErrorCategory(error)
+                if failureCategory != .auth { failureCategory = category }
             } catch {
-                outcomes[record.locale] = .processing
-                failures.append("\(record.locale): \(error.localizedDescription)")
+                if case .failed? = outcomes[record.locale] {} else { outcomes[record.locale] = .processing }
+                if !Self.isCancellation(error) {
+                    failures.append("\(record.locale): \(error.localizedDescription)")
+                    let category = Self.screenshotRequestErrorCategory(error)
+                    if failureCategory != .auth { failureCategory = category }
+                }
             }
             persistPendingScreenshotProcessing()
         }
@@ -105,10 +127,25 @@ extension AppState {
             if failures.isEmpty {
                 clearLastErrorPreservingWorkspaceDraftError()
             } else {
-                setError(failures.joined(separator: "\n"), category: .appStoreConnect)
+                reportScreenshotRequestFailures(failures, category: failureCategory)
             }
             refreshRemoteScreenshotCounts()
         }
+    }
+
+    nonisolated private static func screenshotRequestErrorCategory(_ error: any Error) -> AppError.Category {
+        if case AppStoreConnectClientError.requestFailed(let status, _) = error, status == 401 || status == 403 {
+            return .auth
+        }
+        return Self.category(for: error)
+    }
+
+    private func reportScreenshotRequestFailures(_ failures: [String], category: AppError.Category) {
+        lastError = AppError(
+            failures.joined(separator: "\n"), category: category,
+            recoverySuggestion: Self.recoverySuggestion(for: category),
+            isRetryable: category == .network || category == .appStoreConnect
+        )
     }
 
     func uploadSelectedScreenshotLocale() {
@@ -498,6 +535,7 @@ extension AppState {
         var uploadedLocales = 0
         var processingLocales = 0
         var failures: [String] = []
+        var failureCategory: AppError.Category = .appStoreConnect
         var results: [String: LocaleSyncResult] = [:]
 
         // Unstructured tasks, not a TaskGroup (see mapConcurrently): the
@@ -531,10 +569,15 @@ extension AppState {
                 results[locale] = .succeeded
             case .skipped(let locale):
                 results[locale] = .skipped
-            case .processing(let locale, let count):
+            case .processing(let locale, let count, let requestErrors):
                 processingLocales += 1
                 uploadedCount += count
                 results[locale] = .processing
+                for error in requestErrors {
+                    failures.append("\(locale): \(error.localizedDescription)")
+                    let category = Self.screenshotRequestErrorCategory(error.underlyingError)
+                    if failureCategory != .auth { failureCategory = category }
+                }
             case .failure(let locale, let error, let hadRemoteContent):
                 // Replacement deletes old screenshots first. A failed run can
                 // leave this locale empty or only partly uploaded.
@@ -572,7 +615,7 @@ extension AppState {
         if failures.isEmpty {
             clearLastErrorPreservingWorkspaceDraftError()
         } else {
-            setError(failures.joined(separator: "\n"), category: .appStoreConnect, isRetryable: true)
+            reportScreenshotRequestFailures(failures, category: failureCategory)
         }
         if selectedAppId == appId, selectedVersionId == versionId {
             refreshRemoteScreenshotCounts()
@@ -582,7 +625,7 @@ extension AppState {
     enum LocaleUploadResult: Sendable {
         case success(locale: String, count: Int)
         case skipped(locale: String)
-        case processing(locale: String, count: Int)
+        case processing(locale: String, count: Int, requestErrors: [ScreenshotProcessingRequestError] = [])
         case failure(locale: String, error: String, hadRemoteContent: Bool)
         case blockingIssue(locale: String)
     }
@@ -606,6 +649,7 @@ extension AppState {
         var replacedSlotWithRemoteContent = false
         var localeUploadCount = 0
         var hasPendingProcessing = false
+        var requestErrors: [ScreenshotProcessingRequestError] = []
         do {
             try Task.checkCancellation()
             let localizationId = try await ensureLocalizationId(
@@ -668,11 +712,18 @@ extension AppState {
                         .init(
                             appId: appId, versionId: versionId, locale: locale, reservation: error.reservation
                         ))
+                } catch let error as ScreenshotProcessingRequestError {
+                    guard !error.remoteSetConfirmedMissing else { throw error }
+                    hasPendingProcessing = true
+                    localeUploadCount += error.reservation.uploaded.count
+                    rememberPendingScreenshotProcessing(
+                        .init(appId: appId, versionId: versionId, locale: locale, reservation: error.reservation))
+                    if !Self.isCancellation(error.underlyingError) { requestErrors.append(error) }
                 }
             }
 
             if hasPendingProcessing {
-                return .processing(locale: locale, count: localeUploadCount)
+                return .processing(locale: locale, count: localeUploadCount, requestErrors: requestErrors)
             } else if localeUploadCount > 0 {
                 return .success(locale: locale, count: localeUploadCount)
             } else {

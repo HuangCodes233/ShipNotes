@@ -71,6 +71,8 @@ The [example files](Examples/release-notes/) include multilingual Markdown and Y
 
 In **Settings → Account**, enter your App Store Connect issuer ID, key ID, and `.p8` private key. Configure AI and Apple Ads separately when needed. Review the destination app, version, locales, and proposed changes before any live write.
 
+In **Settings → AI Assistant**, OpenAI-compatible profiles support **Chat Completions** and **Responses**. Select the API format supported by your endpoint; text and vision profiles can use different formats. Existing profiles keep Chat Completions. Save changes before testing the connection, and check the displayed request URL. Image recognition also requires a model that supports image input. See [AI endpoint configuration](docs/ai-configuration.md) for examples and compatibility details.
+
 Credentials are stored in the macOS Keychain. Preferences, paths, and sync history use local storage. AI operations send input text or screenshot thumbnails to the configured provider; custom endpoints receive that profile's requests and credentials. See [credentials and data flow](docs/privacy-and-data.md) before using private material.
 
 ## Development

@@ -48,6 +48,7 @@ extension ReleaseNotesParser {
         var currentVersion: String?
         var versionLevel = 0
         var currentLines: [String] = []
+        var insideCodeFence = false
 
         func closeSection() {
             if let version = currentVersion {
@@ -60,6 +61,17 @@ extension ReleaseNotesParser {
 
         for line in text.components(separatedBy: .newlines) {
             let range = NSRange(line.startIndex..<line.endIndex, in: line)
+            // Code-fence-aware: headings inside ``` are content. Unclosed
+            // fences fall back to heading detection after the block ends.
+            if line.trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                insideCodeFence.toggle()
+                if currentVersion != nil { currentLines.append(line) }
+                continue
+            }
+            if insideCodeFence {
+                if currentVersion != nil { currentLines.append(line) }
+                continue
+            }
             if let match = Self.changelogVersionHeading.firstMatch(in: line, range: range),
                 let levelRange = Range(match.range(at: 1), in: line),
                 let versionRange = Range(match.range(at: 2), in: line)

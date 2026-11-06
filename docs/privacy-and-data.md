@@ -40,6 +40,8 @@ Screenshot matching downsamples images to at most 512 pixels on the longest side
 
 AI requests use an ephemeral `URLSession` to avoid normal on-disk session caching. That does not control what a provider or proxy stores. A custom base URL receives the credentials and payload for that profile; configure only endpoints you trust.
 
+Responses requests set `store: false` and do not use server-side conversation IDs. This requests that the provider not retain the response as a retrievable API object; it is not a guarantee about provider logs or data-retention policies. Switching API formats keeps the same profile's credentials and local history.
+
 ## First launch and reconnecting
 
 A fresh installation offers mock App Store data and sample Apple Ads data without credentials. Launch also checks for stored credentials and can reconnect to live Apple services. A previously configured installation is therefore not guaranteed to stay offline or in sample mode.

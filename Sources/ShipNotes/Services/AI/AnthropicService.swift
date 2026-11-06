@@ -16,10 +16,7 @@ struct AnthropicService: AIService {
     /// Model name. Claude Haiku 4.5 is plenty smart for parse + translate
     /// and the cheapest first-class Claude.
     let model: String
-    /// In-memory copy of the API key passed at construction time. Used to
-    /// avoid relying on an immediate Keychain re-read (which can flake on
-    /// ad-hoc-signed apps right after a write). Falls back to Keychain when nil.
-    private let cachedKey: String?
+    private let transport: AIHTTPTransport
 
     init(
         keychainStore: any AIKeychainStoring = AIKeychainStore(),
@@ -32,11 +29,8 @@ struct AnthropicService: AIService {
         self.urlSession = urlSession
         self.baseURL = baseURL
         self.model = model.isEmpty ? Self.defaultModel : model
-        if let cached = cachedKey, !cached.isEmpty {
-            self.cachedKey = cached
-        } else {
-            self.cachedKey = nil
-        }
+        self.transport = AIHTTPTransport(
+            session: urlSession, keychainStore: keychainStore, cachedKey: cachedKey)
     }
 
     private var messagesEndpoint: URL {
@@ -44,17 +38,7 @@ struct AnthropicService: AIService {
     }
 
     var isConfigured: Bool {
-        if let cached = cachedKey, !cached.isEmpty { return true }
-        guard let key = try? keychainStore.load(for: .anthropic) else { return false }
-        return !key.isEmpty
-    }
-
-    private func resolveAPIKey() throws -> String {
-        if let cached = cachedKey, !cached.isEmpty { return cached }
-        guard let key = try keychainStore.load(for: .anthropic), !key.isEmpty else {
-            throw AIServiceError.missingAPIKey
-        }
-        return key
+        transport.isConfigured(provider: .anthropic)
     }
 
     // MARK: - parseReleaseNotes
@@ -336,40 +320,24 @@ struct AnthropicService: AIService {
         ]
 
         let response = try await postMessages(body: body)
-        var optimized = try Self.extractStoreMetadataFromToolUse(response)
-        optimized.supportURL = metadata.supportURL
-        optimized.marketingURL = metadata.marketingURL
-        optimized.privacyPolicyURL = metadata.privacyPolicyURL
-        return optimized
+        return AIResponseParsing.restoringOriginalURLs(
+            try Self.extractStoreMetadataFromToolUse(response), from: metadata)
     }
 
     // MARK: - HTTP
 
     private func postMessages(body: [String: Any]) async throws -> [String: Any] {
-        let apiKey = try resolveAPIKey()
-
-        var request = URLRequest(url: messagesEndpoint)
-        request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        request.setValue("prompt-caching-2024-07-31", forHTTPHeaderField: "anthropic-beta")
-        request.setValue("application/json", forHTTPHeaderField: "content-type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        request.timeoutInterval = AIRequestPolicy.requestTimeout
-
-        let (data, response) = try await AIRequestPolicy.data(for: request, session: urlSession)
-
-        guard let http = response as? HTTPURLResponse else {
-            throw AIServiceError.invalidResponse("Non-HTTP response")
-        }
-
-        try AIRequestPolicy.validate(statusCode: http.statusCode, data: data)
-
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw AIServiceError.invalidResponse("Response is not JSON")
-        }
-        try AIRequestPolicy.validateOutputCompleteness(json)
-        return json
+        try await transport.postJSON(
+            url: messagesEndpoint,
+            body: body,
+            provider: .anthropic,
+            headers: { apiKey in
+                [
+                    "x-api-key": apiKey,
+                    "anthropic-version": "2023-06-01",
+                    "anthropic-beta": "prompt-caching-2024-07-31",
+                ]
+            })
     }
 
     // MARK: - Tool-use parsing

@@ -11,6 +11,26 @@ struct ValidationIssue: Hashable, Identifiable, Sendable {
 struct ValidationEngine {
     static let whatsNewCharacterLimit = 4000
 
+    // Precompiled once: `range(of:options:.regularExpression)` recompiles the
+    // pattern on every call, and these run on every keystroke per field.
+    private static let inlineMarkdownPatterns: [NSRegularExpression] = [
+        #"\*\*[^*]+\*\*"#,
+        #"__[^_]+__"#,
+        #"\[[^\]]+\]\([^)]+\)"#,
+        #"`[^`]+`"#,
+    ].map { try! NSRegularExpression(pattern: $0) }
+
+    private static let stripPatterns: [(NSRegularExpression, String)] = [
+        (#"^\s*#{1,6}\s+"#, ""),
+        (#"^\s*[-*+]\s+"#, "• "),
+        (#"\*\*([^*]+)\*\*"#, "$1"),
+        (#"__([^_]+)__"#, "$1"),
+        (#"`([^`]+)`"#, "$1"),
+        (#"\[([^\]]+)\]\([^)]+\)"#, "$1"),
+    ].map { (try! NSRegularExpression(pattern: $0.0), $0.1) }
+
+    private static let headingPattern = try! NSRegularExpression(pattern: #"^#{1,6}\s"#)
+
     func validate(text: String) -> [ValidationIssue] {
         var issues: [ValidationIssue] = []
 
@@ -43,19 +63,16 @@ struct ValidationEngine {
     }
 
     func containsMarkdown(_ text: String) -> Bool {
-        let inlinePatterns = [
-            #"\*\*[^*]+\*\*"#,
-            #"__[^_]+__"#,
-            #"\[[^\]]+\]\([^)]+\)"#,
-            #"`[^`]+`"#,
-        ]
-        for pattern in inlinePatterns where text.range(of: pattern, options: .regularExpression) != nil {
+        let fullRange = NSRange(text.startIndex..<text.endIndex, in: text)
+        for pattern in Self.inlineMarkdownPatterns
+        where pattern.firstMatch(in: text, range: fullRange) != nil {
             return true
         }
         for line in text.components(separatedBy: .newlines) {
             let stripped = line.trimmingCharacters(in: .whitespaces)
-            if stripped.range(of: #"^#{1,6}\s"#, options: .regularExpression) != nil { return true }
             if stripped.hasPrefix("> ") { return true }
+            let lineRange = NSRange(stripped.startIndex..<stripped.endIndex, in: stripped)
+            if Self.headingPattern.firstMatch(in: stripped, range: lineRange) != nil { return true }
         }
         return false
     }
@@ -64,12 +81,10 @@ struct ValidationEngine {
         var lines: [String] = []
         for line in text.components(separatedBy: .newlines) {
             var l = line
-            l = l.replacingOccurrences(of: #"^\s*#{1,6}\s+"#, with: "", options: .regularExpression)
-            l = l.replacingOccurrences(of: #"^\s*[-*+]\s+"#, with: "• ", options: .regularExpression)
-            l = l.replacingOccurrences(of: #"\*\*([^*]+)\*\*"#, with: "$1", options: .regularExpression)
-            l = l.replacingOccurrences(of: #"__([^_]+)__"#, with: "$1", options: .regularExpression)
-            l = l.replacingOccurrences(of: #"`([^`]+)`"#, with: "$1", options: .regularExpression)
-            l = l.replacingOccurrences(of: #"\[([^\]]+)\]\([^)]+\)"#, with: "$1", options: .regularExpression)
+            for (pattern, template) in Self.stripPatterns {
+                let range = NSRange(l.startIndex..<l.endIndex, in: l)
+                l = pattern.stringByReplacingMatches(in: l, range: range, withTemplate: template)
+            }
             lines.append(l)
         }
         return lines.joined(separator: "\n")

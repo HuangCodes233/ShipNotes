@@ -610,7 +610,7 @@
 "%d missing sizes" = "%d missing sizes";
 "Base URL must use https (http is only allowed for localhost)." = "Base URL must use https (http is only allowed for localhost).";
 "Base URL is not a valid URL." = "Base URL is not a valid URL.";
-"Request timed out after %d seconds. The AI service may still be processing; ShipNotes retried automatically but did not receive a response." = "Request timed out after %d seconds. The AI service may still be processing; ShipNotes retried automatically but did not receive a response.";
+"Request timed out after %d seconds. The AI service may still be processing; ShipNotes did not retry to avoid a duplicate request." = "Request timed out after %d seconds. The AI service may still be processing; ShipNotes did not retry to avoid a duplicate request.";
 "Uploading %1$@ · %2$@ (%3$d/%4$d)…" = "Uploading %1$@ · %2$@ (%3$d/%4$d)…";
 "Uploading %1$@ · %2$@ · %3$d screenshot(s) · locale %4$d/%5$d…" = "Uploading %1$@ · %2$@ · %3$d screenshot(s) · locale %4$d/%5$d…";
 "Will replace %1$d screenshot set(s). For each set, delete old screenshots and confirm it is empty before uploading new ones (%2$d remote, %3$d local). If upload fails, the set may be empty or incomplete." = "Will replace %1$d screenshot set(s). For each set, delete old screenshots and confirm it is empty before uploading new ones (%2$d remote, %3$d local). If upload fails, the set may be empty or incomplete.";
@@ -667,7 +667,7 @@
 "Restored from %@" = "Restored from %@";
 "Result" = "Result";
 "Screenshot processing checks completed." = "Screenshot processing checks completed.";
-"Screenshots uploaded. Apple is still processing them. Check processing status before replacing this set again." = "Screenshots uploaded. Apple is still processing them. Check processing status before replacing this set again.";
+"Screenshots uploaded. Apple is still processing them. Check processing status before replacing this set again." = "Screenshots uploaded. Processing or ordering is not confirmed yet. Resolve any reported error and check the status before replacing them again.";
 "Search app, version, or locale" = "Search app, version, or locale";
 "Showing %1$d of %2$d runs" = "Showing %1$d of %2$d runs";
 "The source or remote content changed. Your edited draft was kept; review the differences before syncing." = "The source or remote content changed. Your edited draft was kept; review the differences before syncing.";
@@ -675,3 +675,15 @@
 "Uploaded %1$d screenshot(s); Apple is still processing %2$d locale(s). Check processing status before uploading again." = "Uploaded %1$d screenshot(s); Apple is still processing %2$d locale(s). Check processing status before uploading again.";
 "Workspace drafts could not be opened. The existing draft file has been preserved. %@" = "Workspace drafts could not be opened. The existing draft file has been preserved. %@";
 "Workspace drafts could not be saved. Your edits are still available in this session. %@" = "Workspace drafts could not be saved. Your edits are still available in this session. %@";
+"Wait for AI or source imports to finish and confirm any pending import before submitting for review." = "Wait for AI or source imports to finish and confirm any pending import before submitting for review.";
+"The workspace changed while preparing review submission. Review the latest draft and submit again." = "The workspace changed while preparing review submission. Review the latest draft and submit again.";
+"An edit or import arrived while review submission was in progress and was not applied. Review the version state before trying again." = "An edit or import arrived while review submission was in progress and was not applied. Review the version state before trying again.";
+
+// AI API formats
+"OpenAI / Compatible" = "OpenAI / Compatible";
+"API Format" = "API Format";
+"Request URL" = "Request URL";
+"Choose the request format supported by your provider or gateway." = "Choose the request format supported by your provider or gateway.";
+"Save changes before testing this profile. The test uses the saved provider, model, and API format." = "Save changes before testing this profile. The test uses the saved provider, model, and API format.";
+"AI provider connection test failed." = "AI provider connection test failed.";
+"Vision AI connected (image recognition was not tested)." = "Vision AI connected (image recognition was not tested).";

@@ -199,6 +199,16 @@ final class SampleAppStoreConnectService: AppStoreConnectServicing, @unchecked S
     private var localizationsByVersion: [String: [RemoteLocaleNote]]
     private var attachedBuildByVersion: [String: Build] = [:]
     private var buildsByApp: [String: [Build]] = [:]
+    // Sync paths PATCH several localizations concurrently (mapConcurrently),
+    // so the in-memory store is serialized. The lock is only ever held across
+    // synchronous sections — no await runs under it.
+    private let lock = NSLock()
+
+    private func locked<T>(_ body: () throws -> T) rethrows -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return try body()
+    }
 
     init() {
         apps = MockAppStoreConnect.sampleApps()
@@ -230,14 +240,14 @@ final class SampleAppStoreConnectService: AppStoreConnectServicing, @unchecked S
 
     func validateCredentials() async throws {}
 
-    func fetchApps() async throws -> [AppRecord] { apps }
+    func fetchApps() async throws -> [AppRecord] { locked { apps } }
 
     func fetchVersions(appId: String) async throws -> [ReleaseVersion] {
-        versionsByApp[appId] ?? []
+        locked { versionsByApp[appId] ?? [] }
     }
 
     func fetchLocalizations(versionId: String) async throws -> [RemoteLocaleNote] {
-        localizationsByVersion[versionId] ?? []
+        locked { localizationsByVersion[versionId] ?? [] }
     }
 
     func updateWhatsNew(localizationId: String, text: String) async throws -> RemoteLocaleNote {
@@ -266,7 +276,7 @@ final class SampleAppStoreConnectService: AppStoreConnectServicing, @unchecked S
             locale: locale,
             text: text
         )
-        localizationsByVersion[versionId, default: []].append(note)
+        locked { localizationsByVersion[versionId, default: []].append(note) }
         return note
     }
 
@@ -285,29 +295,33 @@ final class SampleAppStoreConnectService: AppStoreConnectServicing, @unchecked S
             platform: displayPlatform,
             appStoreState: .prepareForSubmission
         )
-        versionsByApp[appId, default: []].insert(version, at: 0)
-        localizationsByVersion[version.id] = []
+        locked {
+            versionsByApp[appId, default: []].insert(version, at: 0)
+            localizationsByVersion[version.id] = []
+        }
         return version
     }
 
     func fetchBuilds(appId: String, marketingVersion: String) async throws -> [Build] {
-        (buildsByApp[appId] ?? []).filter { $0.marketingVersion == marketingVersion }
+        locked { (buildsByApp[appId] ?? []).filter { $0.marketingVersion == marketingVersion } }
     }
 
     func fetchAllBuilds(appId: String) async throws -> [Build] {
-        buildsByApp[appId] ?? []
+        locked { buildsByApp[appId] ?? [] }
     }
 
     func fetchAttachedBuild(versionId: String) async throws -> Build? {
-        attachedBuildByVersion[versionId]
+        locked { attachedBuildByVersion[versionId] }
     }
 
     func setBuild(_ buildId: String?, forVersion versionId: String) async throws {
-        if let buildId {
-            let all = buildsByApp.values.flatMap { $0 }
-            attachedBuildByVersion[versionId] = all.first { $0.id == buildId }
-        } else {
-            attachedBuildByVersion.removeValue(forKey: versionId)
+        locked {
+            if let buildId {
+                let all = buildsByApp.values.flatMap { $0 }
+                attachedBuildByVersion[versionId] = all.first { $0.id == buildId }
+            } else {
+                attachedBuildByVersion.removeValue(forKey: versionId)
+            }
         }
     }
 
@@ -334,18 +348,20 @@ final class SampleAppStoreConnectService: AppStoreConnectServicing, @unchecked S
 
     func submitForReview(appId: String, versionId: String, platform: String) async throws -> String {
         _ = platform
-        if var versions = versionsByApp[appId],
-            let index = versions.firstIndex(where: { $0.id == versionId })
-        {
-            versions[index] = ReleaseVersion(
-                id: versions[index].id,
-                appId: versions[index].appId,
-                versionString: versions[index].versionString,
-                platform: versions[index].platform,
-                appStoreState: .waitingForReview,
-                createdDate: versions[index].createdDate
-            )
-            versionsByApp[appId] = versions
+        locked {
+            if var versions = versionsByApp[appId],
+                let index = versions.firstIndex(where: { $0.id == versionId })
+            {
+                versions[index] = ReleaseVersion(
+                    id: versions[index].id,
+                    appId: versions[index].appId,
+                    versionString: versions[index].versionString,
+                    platform: versions[index].platform,
+                    appStoreState: .waitingForReview,
+                    createdDate: versions[index].createdDate
+                )
+                versionsByApp[appId] = versions
+            }
         }
         return "WAITING_FOR_REVIEW"
     }
@@ -354,13 +370,15 @@ final class SampleAppStoreConnectService: AppStoreConnectServicing, @unchecked S
         id: String,
         _ body: (inout RemoteLocaleNote) -> Void
     ) throws -> RemoteLocaleNote {
-        for (versionId, notes) in localizationsByVersion {
-            guard let index = notes.firstIndex(where: { $0.localizationId == id }) else { continue }
-            var updated = notes
-            body(&updated[index])
-            localizationsByVersion[versionId] = updated
-            return updated[index]
+        try locked {
+            for (versionId, notes) in localizationsByVersion {
+                guard let index = notes.firstIndex(where: { $0.localizationId == id }) else { continue }
+                var updated = notes
+                body(&updated[index])
+                localizationsByVersion[versionId] = updated
+                return updated[index]
+            }
+            throw AppStoreConnectClientError.missingLocalizationId(locale: id)
         }
-        throw AppStoreConnectClientError.missingLocalizationId(locale: id)
     }
 }

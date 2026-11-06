@@ -103,6 +103,85 @@ struct ScreenshotReliabilityTests {
         #expect(!state.isUploadingScreenshots)
     }
 
+    @Test(arguments: [401, 403]) func processingAuthenticationErrorsKeepIDsAndShowRecovery(status: Int) async {
+        let service = MockASCService()
+        let state = state(service: service, defaults: makeTestDefaults())
+        let record = PendingScreenshotProcessing(
+            appId: "app-fixture", versionId: "version-fixture", locale: "en-US", reservation: reservation())
+        state.rememberPendingScreenshotProcessing(record)
+        service.resumeScreenshotProcessingError = ScreenshotProcessingRequestError(
+            reservation: record.reservation,
+            underlyingError: AppStoreConnectClientError.requestFailed(
+                statusCode: status, message: "Credentials rejected"))
+
+        await state.checkPendingScreenshotProcessing()
+
+        #expect(state.pendingScreenshotProcessing[record.key] == record)
+        #expect(state.lastError?.category == .auth)
+        #expect(state.lastError?.message.contains(String(status)) == true)
+        #expect(state.lastError?.recoverySuggestion != nil)
+        #expect(service.replacedScreenshots.isEmpty)
+    }
+
+    @Test func initialProcessingRequestFailurePersistsIDsAndRealError() async {
+        let service = MockASCService()
+        let state = state(service: service, defaults: makeTestDefaults())
+        state.screenshotScan = scan([asset("one.png", hash: "hash")])
+        service.replaceScreenshotsError = ScreenshotProcessingRequestError(
+            reservation: reservation(),
+            underlyingError: AppStoreConnectClientError.requestFailed(statusCode: 403, message: "Access denied"))
+        await state.uploadScreenshotReplacementPlan(uploadPlan())
+        #expect(state.currentPendingScreenshotProcessing.first?.reservation == reservation())
+        #expect(state.syncHistory.first?.localeResults["en-US"] == .processing)
+        #expect(state.lastError?.category == .auth)
+        #expect(state.lastError?.message.contains("403") == true)
+    }
+
+    @Test func confirmedMissingSetEndsPendingAndAllowsANewPreviewWithoutReplacing() async {
+        let service = MockASCService()
+        let state = state(service: service, defaults: makeTestDefaults())
+        state.screenshotScan = scan([asset("one.png", hash: "hash")])
+        let record = PendingScreenshotProcessing(
+            appId: "app-fixture", versionId: "version-fixture", locale: "en-US", reservation: reservation())
+        state.rememberPendingScreenshotProcessing(record)
+        state.recordSyncRun(localeResults: ["en-US": .processing], dryRun: false, kind: .screenshots)
+        service.resumeScreenshotProcessingError = ScreenshotProcessingRequestError(
+            reservation: record.reservation,
+            underlyingError: AppStoreConnectClientError.requestFailed(statusCode: 404, message: "Set deleted"),
+            remoteSetConfirmedMissing: true)
+        await state.checkPendingScreenshotProcessing()
+
+        #expect(state.pendingScreenshotProcessing.isEmpty)
+        if case .failed? = state.syncHistory.first?.localeResults["en-US"] {
+        } else {
+            Issue.record("Confirmed missing set must end the pending history entry")
+        }
+        #expect(state.lastError?.message.contains("404") == true)
+        await state.prepareScreenshotReplacementPreview(locales: ["en-US"])
+        #expect(state.pendingScreenshotReplacement != nil)
+        #expect(service.replacedScreenshots.isEmpty)
+    }
+
+    @Test func unconfirmedMissingSetAndNetworkFailureKeepPending() async {
+        let service = MockASCService()
+        let state = state(service: service, defaults: makeTestDefaults())
+        let record = PendingScreenshotProcessing(
+            appId: "app-fixture", versionId: "version-fixture", locale: "en-US", reservation: reservation())
+        state.rememberPendingScreenshotProcessing(record)
+        for error in [
+            AppStoreConnectClientError.requestFailed(statusCode: 404, message: "Unconfirmed missing set") as any Error,
+            URLError(.notConnectedToInternet),
+        ] {
+            service.resumeScreenshotProcessingError = ScreenshotProcessingRequestError(
+                reservation: record.reservation, underlyingError: error)
+            await state.checkPendingScreenshotProcessing()
+            #expect(state.pendingScreenshotProcessing[record.key] == record)
+            #expect(state.lastError != nil)
+        }
+        #expect(state.lastError?.category == .network)
+        #expect(service.replacedScreenshots.isEmpty)
+    }
+
     @Test func refreshRetainsOnlyUnchangedClassificationsAndOrder() {
         let state = state(service: MockASCService(), defaults: makeTestDefaults())
         let first = asset("one.png", hash: "same")
@@ -136,21 +215,48 @@ struct ScreenshotReliabilityTests {
                 == ScreenshotThumbnailRequest(url: url, contentHash: "same"))
     }
 
-    @Test func uniqueImageGetsAStableHashThatChangesWhenOverwritten() throws {
+    @Test func uniqueImageGetsAStableHashThatChangesWhenOverwritten() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(
             "shipnotes-screenshot-revision-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("one.png")
         try writeTinyPNG(color: .red, to: url)
-        let first = try ScreenshotScanner().scan(url: folder).assets[0]
-        let same = try ScreenshotScanner().scan(url: folder).assets[0]
+        let first = try await ScreenshotScanner().scan(url: folder).assets[0]
+        let same = try await ScreenshotScanner().scan(url: folder).assets[0]
         try writeTinyPNG(color: .blue, to: url)
-        let changed = try ScreenshotScanner().scan(url: folder).assets[0]
+        let changed = try await ScreenshotScanner().scan(url: folder).assets[0]
         #expect(first.contentHash != nil)
         #expect(first.contentHash == same.contentHash)
         #expect(first.id == changed.id)
         #expect(first.contentHash != changed.contentHash)
+    }
+
+    @Test func refreshRehashesChangedPNGWhenPathSizeAndModificationDateArePreserved() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "shipnotes-same-metadata-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("one.png")
+        try writeTinyPNG(color: .red, to: url)
+        var red = try Data(contentsOf: url)
+        try writeTinyPNG(color: .blue, to: url)
+        var blue = try Data(contentsOf: url)
+        let byteCount = max(red.count, blue.count)
+        red.append(Data(repeating: 0, count: byteCount - red.count))
+        blue.append(Data(repeating: 0, count: byteCount - blue.count))
+        let modified = Date(timeIntervalSince1970: 1_700_000_000)
+        try red.write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: url.path)
+        let first = try await ScreenshotScanner().scan(url: folder).assets[0]
+        try blue.write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: url.path)
+        let second = try await ScreenshotScanner().scan(url: folder).assets[0]
+        #expect(first.id == second.id)
+        #expect(first.size == second.size)
+        #expect(first.contentHash != nil)
+        #expect(second.contentHash != nil)
+        #expect(first.contentHash != second.contentHash)
     }
 
     @Test func samePathNewRevisionLoadsNewThumbnailPixels() async throws {
@@ -193,7 +299,7 @@ struct ScreenshotReliabilityTests {
         original.restoreCurrentWorkspaceDraft()
         original.updateLocalText(for: "en-US", text: "Unsynced edited draft")
         original.screenshotFolder = folder
-        original.screenshotScan = try ScreenshotScanner().scan(url: folder)
+        original.screenshotScan = try await ScreenshotScanner().scan(url: folder)
         original.persistWorkspaceDraftsNow()
 
         let reopened = state(service: MockASCService(), defaults: defaults, draftStore: store)
@@ -248,6 +354,118 @@ struct ScreenshotReliabilityTests {
         #expect(ScreenshotReliabilityURLProtocol.store.requests.map(\.httpMethod) == ["GET", "PATCH"])
     }
 
+    @Test(arguments: [401, 403]) func statusReadPreservesAuthenticationErrorAndReservation(status: Int) async throws {
+        ScreenshotReliabilityURLProtocol.store.reset { _ in (status, #"{"errors":[{"detail":"Credentials rejected"}]}"#)
+        }
+        do {
+            _ = try await makeClient().resumeScreenshotProcessing(reservation())
+            Issue.record("Authentication failure must not become processing pending")
+        } catch let error as ScreenshotProcessingRequestError {
+            #expect(error.reservation == reservation())
+            #expect(!error.remoteSetConfirmedMissing)
+            if case .requestFailed(let actual, _)? = error.underlyingError as? AppStoreConnectClientError {
+                #expect(actual == status)
+            } else {
+                Issue.record("Original HTTP error must be preserved")
+            }
+        }
+        #expect(ScreenshotReliabilityURLProtocol.store.requests.map(\.httpMethod) == ["GET"])
+    }
+
+    @Test(arguments: [false, true]) func missingSetIsConfirmedForStatusReadAndOrderErrors(ordering: Bool) async throws {
+        ScreenshotReliabilityURLProtocol.store.reset { request in
+            if request.url?.path.contains("appStoreVersionLocalizations/") == true {
+                return (200, #"{"data":[]}"#)
+            }
+            if ordering && request.httpMethod == "GET" { return (200, Self.twoCompletedScreenshotsJSON) }
+            return (404, #"{"errors":[{"detail":"Set no longer exists"}]}"#)
+        }
+        var record = reservation()
+        if ordering { record.uploaded.append(.init(id: "shot-second", fileName: "two.png")) }
+        do {
+            _ = try await makeClient().resumeScreenshotProcessing(record)
+            Issue.record("Deleted set must be reported")
+        } catch let error as ScreenshotProcessingRequestError {
+            #expect(error.reservation == record)
+            #expect(error.remoteSetConfirmedMissing)
+            if case .requestFailed(let status, _)? = error.underlyingError as? AppStoreConnectClientError {
+                #expect(status == 404)
+            } else {
+                Issue.record("404 must be preserved")
+            }
+        }
+        let methods = ScreenshotReliabilityURLProtocol.store.requests.map(\.httpMethod)
+        #expect(methods == (ordering ? ["GET", "PATCH", "GET"] : ["GET", "GET"]))
+    }
+
+    @Test func failedMissingSetConfirmationDoesNotReleasePendingIDs() async throws {
+        ScreenshotReliabilityURLProtocol.store.reset { request in
+            if request.url?.path.contains("appStoreVersionLocalizations/") == true {
+                return (403, #"{"errors":[{"detail":"Confirmation denied"}]}"#)
+            }
+            return (404, #"{"errors":[{"detail":"Missing set unconfirmed"}]}"#)
+        }
+        do {
+            _ = try await makeClient().resumeScreenshotProcessing(reservation())
+            Issue.record("Confirmation failure must be reported")
+        } catch let error as ScreenshotProcessingRequestError {
+            #expect(error.reservation == reservation())
+            #expect(!error.remoteSetConfirmedMissing)
+            if case .requestFailed(let status, _)? = error.underlyingError as? AppStoreConnectClientError {
+                #expect(status == 403)
+            } else {
+                Issue.record("Confirmation's authentication error must remain actionable")
+            }
+        }
+    }
+
+    @Test func missingSetResponseDoesNotEndPendingIfSetStillExists() async throws {
+        ScreenshotReliabilityURLProtocol.store.reset { request in
+            if request.url?.path.contains("appStoreVersionLocalizations/") == true {
+                return (
+                    200,
+                    #"{"data":[{"type":"appScreenshotSets","id":"set-fixture","attributes":{"screenshotDisplayType":"APP_IPHONE_65"}}]}"#
+                )
+            }
+            return (404, #"{"errors":[{"detail":"Relationship unavailable"}]}"#)
+        }
+        do {
+            _ = try await makeClient().resumeScreenshotProcessing(reservation())
+            Issue.record("Unconfirmed 404 must retain the queue")
+        } catch let error as ScreenshotProcessingRequestError {
+            #expect(error.reservation == reservation())
+            #expect(!error.remoteSetConfirmedMissing)
+            if case .requestFailed(let status, _)? = error.underlyingError as? AppStoreConnectClientError {
+                #expect(status == 404)
+            } else {
+                Issue.record("Original relationship error must be retained")
+            }
+        }
+        #expect(ScreenshotReliabilityURLProtocol.store.requests.map(\.httpMethod) == ["GET", "GET"])
+    }
+
+    @Test func orderAuthenticationFailureRetainsUploadedIDs() async throws {
+        ScreenshotReliabilityURLProtocol.store.reset { request in
+            if request.httpMethod == "GET" { return (200, Self.twoCompletedScreenshotsJSON) }
+            return (403, #"{"errors":[{"detail":"Order change denied"}]}"#)
+        }
+        var record = reservation()
+        record.uploaded.append(.init(id: "shot-second", fileName: "two.png"))
+        do {
+            _ = try await makeClient().resumeScreenshotProcessing(record)
+            Issue.record("Order failure must remain visible")
+        } catch let error as ScreenshotProcessingRequestError {
+            #expect(error.reservation == record)
+            #expect(!error.remoteSetConfirmedMissing)
+            if case .requestFailed(let status, _)? = error.underlyingError as? AppStoreConnectClientError {
+                #expect(status == 403)
+            } else {
+                Issue.record("Order request error must be preserved")
+            }
+        }
+        #expect(ScreenshotReliabilityURLProtocol.store.requests.map(\.httpMethod) == ["GET", "PATCH"])
+    }
+
     @Test func resumedRejectedAssetIsReportedWithoutDeletingIt() async throws {
         ScreenshotReliabilityURLProtocol.store.reset { _ in (200, Self.deliveryJSON(state: "FAILED")) }
         do {
@@ -277,6 +495,21 @@ struct ScreenshotReliabilityTests {
         #expect(probe.started == 2)
         #expect(probe.cancelled == 2)
         #expect(values.count <= 2)
+    }
+
+    @Test func cancellingDuringHashingThrowsInsteadOfReturningAPartialScan() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "shipnotes-cancel-hashing-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        for index in 0..<8 { try writeTinyPNG(color: .red, to: folder.appendingPathComponent("\(index).png")) }
+        let probe = ScreenshotHashCancellationProbe()
+        let scanner = ScreenshotScanner { _ in try probe.hashUntilCancelled() }
+        let task = Task.detached { try await scanner.scan(url: folder) }
+        #expect(await waitUntil { probe.started == 4 })
+        task.cancel()
+        await #expect(throws: CancellationError.self) { _ = try await task.value }
+        #expect(probe.started == 4)
     }
 
     @Test func oldHistoryPayloadStillDecodesWithoutSnapshotsOrProcessing() throws {
@@ -341,6 +574,10 @@ struct ScreenshotReliabilityTests {
     nonisolated private static func deliveryJSON(state: String) -> String {
         #"{"data":[{"type":"appScreenshots","id":"shot-fixture","attributes":{"assetDeliveryState":{"state":"\#(state)"}}}]}"#
     }
+
+    nonisolated private static var twoCompletedScreenshotsJSON: String {
+        #"{"data":[{"type":"appScreenshots","id":"shot-fixture","attributes":{"assetDeliveryState":{"state":"COMPLETE"}}},{"type":"appScreenshots","id":"shot-second","attributes":{"assetDeliveryState":{"state":"COMPLETE"}}}]}"#
+    }
 }
 
 private final class ScreenshotTestClock: @unchecked Sendable {
@@ -364,6 +601,20 @@ private final class ScreenshotMapProbe: @unchecked Sendable {
     var cancelled: Int { lock.withLock { cancellations } }
     func didStart() { lock.withLock { starts += 1 } }
     func didCancel() { lock.withLock { cancellations += 1 } }
+}
+
+private final class ScreenshotHashCancellationProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var started: Int { lock.withLock { count } }
+
+    func hashUntilCancelled() throws -> String {
+        lock.withLock { count += 1 }
+        let deadline = Date().addingTimeInterval(3)
+        while !Task.isCancelled && Date() < deadline { Thread.sleep(forTimeInterval: 0.001) }
+        try Task.checkCancellation()
+        return "uncancelled"
+    }
 }
 
 private final class ScreenshotReliabilityURLProtocol: URLProtocol, @unchecked Sendable {

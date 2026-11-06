@@ -11,28 +11,28 @@ struct AIIntegrationTests {
         #expect(state.selectedAIProvider == .none)
     }
 
-    @Test func savingKeyMakesServiceConfigured() {
+    @Test func savingKeyMakesServiceConfigured() async {
         let keychain = InMemoryAIKeychainStore()
         let state = AppState(aiKeychainStore: keychain, defaults: makeTestDefaults())
-        state.saveAIKey("sk-ant-test-key-xxx", for: .anthropic)
+        await state.saveAIKey("sk-ant-test-key-xxx", for: .anthropic)
         #expect(state.isAIConfigured == true)
         #expect(state.selectedAIProvider == .anthropic)
         #expect((try? keychain.load(for: .anthropic)) == "sk-ant-test-key-xxx")
     }
 
-    @Test func removingKeyMakesServiceUnconfigured() {
+    @Test func removingKeyMakesServiceUnconfigured() async {
         let keychain = InMemoryAIKeychainStore()
         let state = AppState(aiKeychainStore: keychain, defaults: makeTestDefaults())
-        state.saveAIKey("sk-ant-test-key-xxx", for: .anthropic)
-        state.removeAIKey(for: .anthropic)
+        await state.saveAIKey("sk-ant-test-key-xxx", for: .anthropic)
+        await state.removeAIKey(for: .anthropic)
         #expect(state.isAIConfigured == false)
         #expect(state.selectedAIProvider == .none)
     }
 
-    @Test func savingVisionKeyDoesNotConfigureTextAI() {
+    @Test func savingVisionKeyDoesNotConfigureTextAI() async {
         let keychain = InMemoryAIKeychainStore()
         let state = AppState(aiKeychainStore: keychain, defaults: makeTestDefaults())
-        state.saveVisionAIKey("sk-vision-test-key", for: .openai)
+        await state.saveVisionAIKey("sk-vision-test-key", for: .openai)
         #expect(state.isVisionAIConfigured == true)
         #expect(state.selectedVisionAIProvider == .openai)
         #expect(state.isAIConfigured == false)

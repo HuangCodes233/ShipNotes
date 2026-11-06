@@ -10,7 +10,8 @@ struct DiffView: View {
     // Without this, the column animation re-computes the full diff ~60×/sec
     // and the sidebar toggle feels janky.
     @State private var diffLines: [DiffLine] = []
-    @State private var lastKey: String = ""
+    @State private var lastInput: DiffInput?
+    @State private var sideBySideRows: [DiffRowPair] = []
     @State private var isSideBySide = false
 
     private var addedCount: Int { diffLines.filter { $0.kind == .added }.count }
@@ -84,7 +85,7 @@ struct DiffView: View {
             }
         }
         .clipped()
-        .task(id: textKey) { recomputeDiff() }
+        .task(id: isCollapsed ? nil : input) { await recomputeDiff() }
     }
 
     private var unified: some View {
@@ -113,33 +114,6 @@ struct DiffView: View {
     /// is what makes the two sides scroll in lockstep — the old layout was two
     /// independent ScrollViews showing unhighlighted text, which couldn't
     /// actually be compared.
-    private var sideBySideRows: [(left: DiffLine?, right: DiffLine?)] {
-        var rows: [(DiffLine?, DiffLine?)] = []
-        var pendingRemoved: [DiffLine] = []
-        func drainPendingRemoved() {
-            while !pendingRemoved.isEmpty {
-                rows.append((pendingRemoved.removeFirst(), nil))
-            }
-        }
-        for line in diffLines {
-            switch line.kind {
-            case .removed:
-                pendingRemoved.append(line)
-            case .added:
-                if !pendingRemoved.isEmpty {
-                    rows.append((pendingRemoved.removeFirst(), line))
-                } else {
-                    rows.append((nil, line))
-                }
-            case .unchanged:
-                drainPendingRemoved()
-                rows.append((line, line))
-            }
-        }
-        drainPendingRemoved()
-        return rows
-    }
-
     private var sideBySide: some View {
         VStack(spacing: 4) {
             HStack(spacing: 0) {
@@ -172,7 +146,7 @@ struct DiffView: View {
         .frame(minHeight: 140, maxHeight: 280)
     }
 
-    private func sideBySideRow(_ row: (left: DiffLine?, right: DiffLine?)) -> some View {
+    private func sideBySideRow(_ row: DiffRowPair) -> some View {
         HStack(spacing: 0) {
             sideBySideCell(row.left, highlight: .removed)
             Color(nsColor: .separatorColor)
@@ -202,15 +176,24 @@ struct DiffView: View {
             .accessibilityHidden(line == nil)
     }
 
-    private var textKey: String {
-        "\(note.locale)\u{1F}\(note.remoteText ?? "")\u{1F}\(note.localText)"
+    private var input: DiffInput {
+        DiffInput(old: note.remoteText ?? "", new: note.localText)
     }
 
-    private func recomputeDiff() {
-        guard textKey != lastKey else { return }
-        lastKey = textKey
-        diffLines = DiffEngine().diff(old: note.remoteText ?? "", new: note.localText)
+    private func recomputeDiff() async {
+        guard !isCollapsed else { return }
+        let requested = input
+        guard requested != lastInput else { return }
+        do {
+            try await Task.sleep(for: .milliseconds(100))
+            let lines = try await DiffEngine.render(requested)
+            guard !Task.isCancelled, input == requested, !isCollapsed else { return }
+            diffLines = lines
+            sideBySideRows = DiffEngine.pairedRows(lines)
+            lastInput = requested
+        } catch { /* Superseded typing or a collapsed view cancels this render. */  }
     }
+
 }
 
 struct DiffRow: View {

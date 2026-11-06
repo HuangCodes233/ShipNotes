@@ -1178,7 +1178,7 @@ struct AppStateTests {
         #expect(state.screenshotCoverageGroups.first { $0.locale == "zh-Hant" }?.count(for: .iPhone69) == 1)
     }
 
-    @Test func projectDiscoveredScreenshotsKeepTraditionalChineseFolderSeparate() throws {
+    @Test func projectDiscoveredScreenshotsKeepTraditionalChineseFolderSeparate() async throws {
         let state = AppState(aiKeychainStore: InMemoryAIKeychainStore(), defaults: makeTestDefaults())
         state.apps = [
             AppRecord(
@@ -1223,7 +1223,7 @@ struct AppStateTests {
         try writePNG(
             width: 1242, height: 2688, to: simplified65.appending(path: "ExampleTimer_zh-Hans_6_5_01_today_pay.jpg"))
 
-        state.screenshotScan = try ScreenshotScanner().scan(url: project)
+        state.screenshotScan = try await ScreenshotScanner().scan(url: project)
 
         #expect(state.screenshotScan?.sourceKind == .discoveredFolder)
         #expect(state.screenshotCoverageGroups.first { $0.locale == "zh-Hans" }?.count(for: .iPhone69) == 1)

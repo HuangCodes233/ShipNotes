@@ -1,6 +1,6 @@
 import Foundation
 
-/// OpenAI Chat Completions client. Uses JSON-object response format to
+/// OpenAI-compatible Chat Completions / Responses client. Uses JSON-object format to
 /// guarantee parseable structured output. Works with the official OpenAI
 /// endpoint and any OpenAI-compatible proxy (LiteLLM, OneAPI, vLLM,
 /// LM Studio, Ollama OpenAI API, OpenRouter, Together, Groq, etc.).
@@ -17,44 +17,32 @@ struct OpenAIService: AIService {
     /// Model name. Default `gpt-4o-mini` is OpenAI's cheap workhorse and
     /// supports JSON-object response format on the official endpoint.
     let model: String
-    /// See `AnthropicService.cachedKey` — same role: avoid Keychain re-read
-    /// flakes right after a write on ad-hoc-signed apps.
-    private let cachedKey: String?
+    let apiFormat: OpenAIAPIFormat
+    private let transport: AIHTTPTransport
 
     init(
         keychainStore: any AIKeychainStoring = AIKeychainStore(),
         urlSession: URLSession = AIRequestPolicy.ephemeralSession,
         baseURL: URL = OpenAIService.defaultBaseURL,
         model: String = OpenAIService.defaultModel,
+        apiFormat: OpenAIAPIFormat = .chatCompletions,
         cachedKey: String? = nil
     ) {
         self.keychainStore = keychainStore
         self.urlSession = urlSession
         self.baseURL = baseURL
         self.model = model.isEmpty ? Self.defaultModel : model
-        if let cached = cachedKey, !cached.isEmpty {
-            self.cachedKey = cached
-        } else {
-            self.cachedKey = nil
-        }
+        self.apiFormat = apiFormat
+        self.transport = AIHTTPTransport(
+            session: urlSession, keychainStore: keychainStore, cachedKey: cachedKey)
     }
 
     private var chatEndpoint: URL {
-        AIEndpointResolver.openAIChatCompletions(from: baseURL)
+        AIEndpointResolver.openAI(from: baseURL, format: apiFormat)
     }
 
     var isConfigured: Bool {
-        if let cached = cachedKey, !cached.isEmpty { return true }
-        guard let key = try? keychainStore.load(for: .openai) else { return false }
-        return !key.isEmpty
-    }
-
-    private func resolveAPIKey() throws -> String {
-        if let cached = cachedKey, !cached.isEmpty { return cached }
-        guard let key = try keychainStore.load(for: .openai), !key.isEmpty else {
-            throw AIServiceError.missingAPIKey
-        }
-        return key
+        transport.isConfigured(provider: .openai)
     }
 
     // MARK: - parseReleaseNotes
@@ -88,7 +76,7 @@ struct OpenAIService: AIService {
             ],
         ]
         let response = try await postChatCompletion(body: body)
-        let content = try Self.extractMessageContent(response)
+        let content = try OpenAIAPIAdapter.text(from: response, format: apiFormat)
         let parsed = try AIResponseParsing.locales(fromContent: content)
         guard !parsed.isEmpty else { throw AIServiceError.noContentExtracted }
         return parsed
@@ -127,7 +115,7 @@ struct OpenAIService: AIService {
             ],
         ]
         let response = try await postChatCompletion(body: body)
-        let content = try Self.extractMessageContent(response)
+        let content = try OpenAIAPIAdapter.text(from: response, format: apiFormat)
         let translated = try AIResponseParsing.translation(fromContent: content)
         guard !translated.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw AIServiceError.noContentExtracted
@@ -178,7 +166,7 @@ struct OpenAIService: AIService {
             ],
         ]
         let response = try await postChatCompletion(body: body)
-        let content = try Self.extractMessageContent(response)
+        let content = try OpenAIAPIAdapter.text(from: response, format: apiFormat)
         let parsed = try AIResponseParsing.storeMetadataLocales(fromContent: content)
         guard !parsed.isEmpty else { throw AIServiceError.noContentExtracted }
         return parsed
@@ -225,54 +213,19 @@ struct OpenAIService: AIService {
             ],
         ]
         let response = try await postChatCompletion(body: body)
-        let content = try Self.extractMessageContent(response)
-        var optimized = try AIResponseParsing.storeMetadata(fromContent: content)
-        // URLs are identity fields for the user's account/web presence. The
-        // model can see them for context, but ShipNotes never accepts invented
-        // replacements from AI.
-        optimized.supportURL = metadata.supportURL
-        optimized.marketingURL = metadata.marketingURL
-        optimized.privacyPolicyURL = metadata.privacyPolicyURL
-        return optimized
+        let content = try OpenAIAPIAdapter.text(from: response, format: apiFormat)
+        return AIResponseParsing.restoringOriginalURLs(
+            try AIResponseParsing.storeMetadata(fromContent: content), from: metadata)
     }
 
     // MARK: - HTTP
 
     private func postChatCompletion(body: [String: Any]) async throws -> [String: Any] {
-        let apiKey = try resolveAPIKey()
-
-        var request = URLRequest(url: chatEndpoint)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        request.timeoutInterval = AIRequestPolicy.requestTimeout
-
-        let (data, response) = try await AIRequestPolicy.data(for: request, session: urlSession)
-
-        guard let http = response as? HTTPURLResponse else {
-            throw AIServiceError.invalidResponse("Non-HTTP response")
-        }
-
-        try AIRequestPolicy.validate(statusCode: http.statusCode, data: data)
-
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw AIServiceError.invalidResponse("Response is not JSON")
-        }
-        try AIRequestPolicy.validateOutputCompleteness(json)
-        return json
+        try await transport.postJSON(
+            url: chatEndpoint,
+            body: OpenAIAPIAdapter.requestBody(fromChatBody: body, format: apiFormat),
+            provider: .openai,
+            headers: { ["Authorization": "Bearer \($0)"] })
     }
 
-    // MARK: - Response parsing
-
-    private static func extractMessageContent(_ response: [String: Any]) throws -> String {
-        guard let choices = response["choices"] as? [[String: Any]],
-            let first = choices.first,
-            let message = first["message"] as? [String: Any],
-            let content = message["content"] as? String
-        else {
-            throw AIServiceError.invalidResponse("Response has no choices[0].message.content")
-        }
-        return content
-    }
 }

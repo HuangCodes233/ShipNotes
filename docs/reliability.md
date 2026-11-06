@@ -75,3 +75,31 @@ a failed sync, repeated selection/initialization, candidate credential failures,
 draft restoration and account isolation, screenshot processing recovery, and
 history compatibility/export. Tests do not establish that a particular live
 Apple account or provider will accept a write.
+
+## Preparing a review submission
+
+A version's saved draft is restored before its editor waits for attached-build
+information. Submission waits for AI and source imports to finish and checks the
+workspace again after updating the release type. The final submission request
+locks editing across shared windows; model entry points also reject file-watcher
+or import changes during that phase and report any unapplied change afterwards.
+
+AI configuration reads, saves, and removals share an ordered background queue.
+A stale request cannot reactivate a removed configuration or overwrite the result
+of a newer request. Each configuration panel reports its own operation result.
+
+Screenshot refresh hashes the actual file contents, including replacements with
+the same file size and modification date. Processing checks retain uploaded IDs
+when a request fails and show the underlying error. A missing screenshot set is
+confirmed with a separate query before its pending record is marked failed;
+recovery never automatically uploads a replacement.
+
+## Comparing large edits
+
+Side-by-side comparisons pair each consecutive block of additions and removals,
+including replacements emitted in either order. Detailed comparisons run off the
+UI actor after a short typing delay, and collapsed release-note comparisons skip
+this work. Matching heads and tails are preserved. A large rewritten middle that
+would exceed the bounded LCS budget is displayed as a replacement block instead
+of finding the smallest possible line edit. Both complete documents remain
+represented, and summary counts match the displayed comparison.

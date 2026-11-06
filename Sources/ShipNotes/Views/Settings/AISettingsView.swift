@@ -6,12 +6,16 @@ struct AISettingsView: View {
     @State private var aiApiKey: String = ""
     @State private var aiBaseURL: String = ""
     @State private var aiModel: String = ""
+    @State private var aiAPIFormat: OpenAIAPIFormat = .chatCompletions
     @State private var aiSaveFeedback: AISaveFeedback?
     @State private var visionAIProvider: AIProvider = .openai
     @State private var visionAIApiKey: String = ""
     @State private var visionAIBaseURL: String = ""
     @State private var visionAIModel: String = ""
+    @State private var visionAIAPIFormat: OpenAIAPIFormat = .chatCompletions
     @State private var visionAISaveFeedback: AISaveFeedback?
+    @State private var textProfileRequestID: UUID?
+    @State private var visionProfileRequestID: UUID?
     // Hydrate once so switching tabs preserves unsaved form values.
     @State private var hasLoadedSummary = false
 
@@ -72,11 +76,13 @@ struct AISettingsView: View {
                     apiKey: $aiApiKey,
                     baseURL: $aiBaseURL,
                     model: $aiModel,
+                    apiFormat: $aiAPIFormat,
                     role: .text,
                     providers: AIProvider.allCases.filter { $0 != .none },
                     onProviderChange: { newValue in
                         aiBaseURL = state.storedAIBaseURL(for: newValue, role: .text)
                         aiModel = state.storedAIModel(for: newValue, role: .text)
+                        aiAPIFormat = state.aiAPIFormat(for: newValue, role: .text)
                         aiApiKey = ""
                         aiSaveFeedback = nil
                     }
@@ -93,12 +99,27 @@ struct AISettingsView: View {
 
                 HStack {
                     Button(role: .destructive) {
-                        state.removeAIKey(for: aiProvider)
-                        state.saveAIEndpointConfig(baseURL: "", model: "", for: aiProvider)
-                        aiApiKey = ""
-                        aiBaseURL = ""
-                        aiModel = ""
-                        aiSaveFeedback = nil
+                        let provider = aiProvider
+                        let requestID = UUID()
+                        textProfileRequestID = requestID
+                        Task {
+                            defer { if textProfileRequestID == requestID { textProfileRequestID = nil } }
+                            let removed = await state.removeAIKey(for: provider)
+                            guard textProfileRequestID == requestID, aiProvider == provider else { return }
+                            guard removed else {
+                                if let error = state.lastError {
+                                    aiSaveFeedback = .init(kind: .failure, message: error.message)
+                                }
+                                return
+                            }
+                            state.saveAIEndpointConfig(
+                                baseURL: "", model: "", apiFormat: .chatCompletions, for: provider)
+                            aiApiKey = ""
+                            aiBaseURL = ""
+                            aiModel = ""
+                            aiAPIFormat = .chatCompletions
+                            aiSaveFeedback = nil
+                        }
                     } label: {
                         Label(L("Remove"), systemImage: "trash")
                     }
@@ -107,18 +128,11 @@ struct AISettingsView: View {
                     Spacer()
 
                     Button {
-                        Task {
-                            await state.testAIConnection()
-                            if let err = state.lastError {
-                                aiSaveFeedback = .init(kind: .failure, message: err.message)
-                            } else {
-                                aiSaveFeedback = .init(kind: .success, message: L("AI provider ready"))
-                            }
-                        }
+                        handleAITest()
                     } label: {
                         Label(L("Test"), systemImage: "network")
                     }
-                    .disabled(!state.isAIConfigured || state.isAIRunning)
+                    .disabled(!state.isAIConfigured || state.isAIRunning || textHasUnsavedChanges)
 
                     Button {
                         handleAISave()
@@ -129,9 +143,20 @@ struct AISettingsView: View {
                     .disabled(state.isAIRunning)
                 }
 
+                if textHasUnsavedChanges {
+                    Text(
+                        L(
+                            "Save changes before testing this profile. The test uses the saved provider, model, and API format."
+                        )
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+
                 feedbackView(aiSaveFeedback)
             }
         }
+        .disabled(state.isSavingAIConfiguration || textProfileRequestID != nil)
     }
 
     private var visionAISection: some View {
@@ -150,11 +175,13 @@ struct AISettingsView: View {
                     apiKey: $visionAIApiKey,
                     baseURL: $visionAIBaseURL,
                     model: $visionAIModel,
+                    apiFormat: $visionAIAPIFormat,
                     role: .vision,
                     providers: AIProvider.allCases.filter(\.supportsVisionInput),
                     onProviderChange: { newValue in
                         visionAIBaseURL = state.storedAIBaseURL(for: newValue, role: .vision)
                         visionAIModel = state.storedAIModel(for: newValue, role: .vision)
+                        visionAIAPIFormat = state.aiAPIFormat(for: newValue, role: .vision)
                         visionAIApiKey = ""
                         visionAISaveFeedback = nil
                     }
@@ -171,18 +198,40 @@ struct AISettingsView: View {
 
                 HStack {
                     Button(role: .destructive) {
-                        state.removeVisionAIKey(for: visionAIProvider)
-                        state.saveAIEndpointConfig(baseURL: "", model: "", for: visionAIProvider, role: .vision)
-                        visionAIApiKey = ""
-                        visionAIBaseURL = ""
-                        visionAIModel = ""
-                        visionAISaveFeedback = nil
+                        let provider = visionAIProvider
+                        let requestID = UUID()
+                        visionProfileRequestID = requestID
+                        Task {
+                            defer { if visionProfileRequestID == requestID { visionProfileRequestID = nil } }
+                            let removed = await state.removeVisionAIKey(for: provider)
+                            guard visionProfileRequestID == requestID, visionAIProvider == provider else { return }
+                            guard removed else {
+                                if let error = state.lastError {
+                                    visionAISaveFeedback = .init(kind: .failure, message: error.message)
+                                }
+                                return
+                            }
+                            state.saveAIEndpointConfig(
+                                baseURL: "", model: "", apiFormat: .chatCompletions, for: provider, role: .vision)
+                            visionAIApiKey = ""
+                            visionAIBaseURL = ""
+                            visionAIModel = ""
+                            visionAIAPIFormat = .chatCompletions
+                            visionAISaveFeedback = nil
+                        }
                     } label: {
                         Label(L("Remove"), systemImage: "trash")
                     }
                     .disabled(!state.isVisionAIConfigured || state.selectedVisionAIProvider != visionAIProvider)
 
                     Spacer()
+
+                    Button {
+                        handleVisionAITest()
+                    } label: {
+                        Label(L("Test"), systemImage: "network")
+                    }
+                    .disabled(!state.isVisionAIConfigured || state.isAIRunning || visionHasUnsavedChanges)
 
                     Button {
                         handleVisionAISave()
@@ -193,9 +242,20 @@ struct AISettingsView: View {
                     .disabled(state.isAIRunning)
                 }
 
+                if visionHasUnsavedChanges {
+                    Text(
+                        L(
+                            "Save changes before testing this profile. The test uses the saved provider, model, and API format."
+                        )
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+
                 feedbackView(visionAISaveFeedback)
             }
         }
+        .disabled(state.isSavingVisionAIConfiguration || visionProfileRequestID != nil)
     }
 
     @ViewBuilder
@@ -225,12 +285,14 @@ struct AISettingsView: View {
         }
         aiBaseURL = state.storedAIBaseURL(for: aiProvider, role: .text)
         aiModel = state.storedAIModel(for: aiProvider, role: .text)
+        aiAPIFormat = state.aiAPIFormat(for: aiProvider, role: .text)
 
         if state.selectedVisionAIProvider != .none {
             visionAIProvider = state.selectedVisionAIProvider
         }
         visionAIBaseURL = state.storedAIBaseURL(for: visionAIProvider, role: .vision)
         visionAIModel = state.storedAIModel(for: visionAIProvider, role: .vision)
+        visionAIAPIFormat = state.aiAPIFormat(for: visionAIProvider, role: .vision)
     }
 
     /// https is required so the API key never crosses the wire in cleartext.
@@ -249,75 +311,117 @@ struct AISettingsView: View {
     }
 
     private func handleAISave() {
+        guard textProfileRequestID == nil, !state.isSavingAIConfiguration else { return }
         if let endpointError = aiEndpointError(for: aiBaseURL) {
             aiSaveFeedback = .init(kind: .failure, message: endpointError)
             return
         }
-        // Persist this provider's endpoint config first so the rebuilt
-        // service picks up the new Base URL / model.
-        state.saveAIEndpointConfig(baseURL: aiBaseURL, model: aiModel, for: aiProvider)
-
+        let provider = aiProvider
         let trimmedKey = aiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        let saveErrorBefore = state.lastError
-        if !trimmedKey.isEmpty {
-            state.saveAIKey(trimmedKey, for: aiProvider)
-            aiApiKey = ""
-        } else {
-            // Endpoint-only update: reload from Keychain so the new URL/model
-            // take effect using the previously-saved key for this provider.
-            state.reloadAIServiceFromKeychain()
-        }
+        let baseURL = aiBaseURL
+        let model = aiModel
+        let format = aiAPIFormat
+        let requestID = UUID()
+        textProfileRequestID = requestID
+        Task {
+            defer { if textProfileRequestID == requestID { textProfileRequestID = nil } }
+            let saved = await state.saveAIProfileConfiguration(
+                baseURL: baseURL, model: model, apiFormat: format, apiKeyInput: trimmedKey,
+                for: provider, role: .text)
+            guard textProfileRequestID == requestID, aiProvider == provider else { return }
 
-        // Judge THIS save by errors raised during it, not by whatever
-        // unrelated error happened to be left in the global banner.
-        if state.lastError != saveErrorBefore, let err = state.lastError {
-            aiSaveFeedback = .init(kind: .failure, message: err.message)
-        } else if state.isAIConfigured && state.selectedAIProvider == aiProvider {
-            aiSaveFeedback = .init(
-                kind: .success,
-                message: L("Saved. Provider: %@", state.selectedAIProvider.displayName)
-            )
-        } else {
-            aiSaveFeedback = .init(
-                kind: .failure,
-                message: L("Save did not result in a configured provider. Check the Base URL / API key and try again.")
-            )
+            if saved && state.isAIConfigured && state.selectedAIProvider == provider {
+                aiApiKey = ""
+                aiSaveFeedback = .init(
+                    kind: .success,
+                    message: L("Saved. Provider: %@", state.selectedAIProvider.displayName)
+                )
+            } else {
+                aiSaveFeedback = .init(
+                    kind: .failure,
+                    message: state.lastError?.message
+                        ?? L(
+                            "Save did not result in a configured provider. Check the Base URL / API key and try again.")
+                )
+            }
         }
     }
 
     private func handleVisionAISave() {
+        guard visionProfileRequestID == nil, !state.isSavingVisionAIConfiguration else { return }
         if let endpointError = aiEndpointError(for: visionAIBaseURL) {
             visionAISaveFeedback = .init(kind: .failure, message: endpointError)
             return
         }
-        state.saveAIEndpointConfig(
-            baseURL: visionAIBaseURL,
-            model: visionAIModel,
-            for: visionAIProvider,
-            role: .vision
-        )
-
+        let provider = visionAIProvider
+        let baseURL = visionAIBaseURL
+        let model = visionAIModel
+        let format = visionAIAPIFormat
         let trimmedKey = visionAIApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        let saveErrorBefore = state.lastError
-        if !trimmedKey.isEmpty {
-            state.saveVisionAIKey(trimmedKey, for: visionAIProvider)
-            visionAIApiKey = ""
-        } else {
-            state.reloadVisionAIServiceFromKeychain()
+        let requestID = UUID()
+        visionProfileRequestID = requestID
+        Task {
+            defer { if visionProfileRequestID == requestID { visionProfileRequestID = nil } }
+            let saved = await state.saveAIProfileConfiguration(
+                baseURL: baseURL, model: model, apiFormat: format, apiKeyInput: trimmedKey,
+                for: provider, role: .vision)
+            guard visionProfileRequestID == requestID, visionAIProvider == provider else { return }
+            if saved && state.isVisionAIConfigured && state.selectedVisionAIProvider == provider {
+                visionAIApiKey = ""
+                visionAISaveFeedback = .init(
+                    kind: .success,
+                    message: L("Saved vision AI. Provider: %@", state.selectedVisionAIProvider.displayName)
+                )
+            } else {
+                visionAISaveFeedback = .init(
+                    kind: .failure,
+                    message: state.lastError?.message
+                        ?? L(
+                            "Save did not result in a configured vision model. Check the API key and try again.")
+                )
+            }
         }
+    }
 
-        if state.lastError != saveErrorBefore, let err = state.lastError {
-            visionAISaveFeedback = .init(kind: .failure, message: err.message)
-        } else if state.isVisionAIConfigured && state.selectedVisionAIProvider == visionAIProvider {
-            visionAISaveFeedback = .init(
-                kind: .success,
-                message: L("Saved vision AI. Provider: %@", state.selectedVisionAIProvider.displayName)
-            )
-        } else {
-            visionAISaveFeedback = .init(
-                kind: .failure,
-                message: L("Save did not result in a configured vision model. Check the API key and try again.")
-            )
+    private var textHasUnsavedChanges: Bool {
+        state.hasUnsavedAIProfileChanges(
+            provider: aiProvider, baseURL: aiBaseURL, model: aiModel,
+            apiFormat: aiAPIFormat, apiKeyInput: aiApiKey, role: .text)
+    }
+
+    private var visionHasUnsavedChanges: Bool {
+        state.hasUnsavedAIProfileChanges(
+            provider: visionAIProvider, baseURL: visionAIBaseURL, model: visionAIModel,
+            apiFormat: visionAIAPIFormat, apiKeyInput: visionAIApiKey, role: .vision)
+    }
+
+    private func handleAITest() {
+        guard !textHasUnsavedChanges, textProfileRequestID == nil else { return }
+        let requestID = UUID()
+        textProfileRequestID = requestID
+        Task {
+            defer { if textProfileRequestID == requestID { textProfileRequestID = nil } }
+            let succeeded = await state.testAIConnection()
+            guard textProfileRequestID == requestID, !textHasUnsavedChanges else { return }
+            aiSaveFeedback =
+                succeeded
+                ? .init(kind: .success, message: L("AI provider ready"))
+                : .init(kind: .failure, message: state.lastError?.message ?? L("AI provider connection test failed."))
+        }
+    }
+
+    private func handleVisionAITest() {
+        guard !visionHasUnsavedChanges, visionProfileRequestID == nil else { return }
+        let requestID = UUID()
+        visionProfileRequestID = requestID
+        Task {
+            defer { if visionProfileRequestID == requestID { visionProfileRequestID = nil } }
+            let succeeded = await state.testVisionAIConnection()
+            guard visionProfileRequestID == requestID, !visionHasUnsavedChanges else { return }
+            visionAISaveFeedback =
+                succeeded
+                ? .init(kind: .success, message: L("Vision AI connected (image recognition was not tested)."))
+                : .init(kind: .failure, message: state.lastError?.message ?? L("AI provider connection test failed."))
         }
     }
 

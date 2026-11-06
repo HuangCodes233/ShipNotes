@@ -49,6 +49,23 @@ enum AIRequestPolicy {
         {
             throw AIServiceError.outputTruncated
         }
+        if json["object"] as? String == "response" || json["output"] != nil || json["incomplete_details"] != nil {
+            try validateResponsesStatus(json)
+        }
+    }
+
+    static func validateResponsesStatus(_ json: [String: Any]) throws {
+        let reason = (json["incomplete_details"] as? [String: Any])?["reason"] as? String
+        if reason == "max_output_tokens" { throw AIServiceError.outputTruncated }
+        if let error = json["error"] as? [String: Any] {
+            throw AIServiceError.invalidResponse(
+                "Responses request failed: \(error["message"] as? String ?? "unknown error")")
+        }
+        guard let status = json["status"] as? String, status != "completed" else { return }
+        if status == "incomplete", reason == "content_filter" {
+            throw AIServiceError.requestRejected(reason ?? "content_filter")
+        }
+        throw AIServiceError.invalidResponse("Responses request is \(status), not completed")
     }
 
     static func validate(statusCode: Int, data: Data) throws {
@@ -134,8 +151,11 @@ enum AIRequestPolicy {
             if nsError.domain == NSURLErrorDomain,
                 URLError.Code(rawValue: nsError.code) == .timedOut
             {
+                // Deliberately does NOT claim a retry: timeouts are excluded
+                // from `isRetryableNetworkError` because the provider may have
+                // already generated (and billed) the answer.
                 return L(
-                    "Request timed out after %d seconds. The AI service may still be processing; ShipNotes retried automatically but did not receive a response.",
+                    "Request timed out after %d seconds. The AI service may still be processing; ShipNotes did not retry to avoid a duplicate request.",
                     Int(requestTimeout)
                 )
             }

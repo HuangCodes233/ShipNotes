@@ -21,9 +21,18 @@ extension ReleaseNotesParser {
 
         // Only treat this as the log format if at least one H3 maps to a locale.
         // Otherwise it's a regular markdown file and the caller should fall back.
+        // Headings repeat across versions; memoize locale identification so the
+        // probe and the chosen version's pass don't each re-scan 60+ names.
+        var localeByHeading: [String: String?] = [:]
+        func cachedLocale(for heading: String) -> String? {
+            if let cached = localeByHeading[heading] { return cached }
+            let resolved = identifyLocale(fromHeading: heading)
+            localeByHeading[heading] = .some(resolved)
+            return resolved
+        }
         let canIdentifyAnyLocale = versionSections.contains { vs in
             vs.languageSections.contains { ls in
-                identifyLocale(fromHeading: ls.heading) != nil
+                cachedLocale(for: ls.heading) != nil
             }
         }
         guard canIdentifyAnyLocale else { return nil }
@@ -33,7 +42,7 @@ extension ReleaseNotesParser {
         var locales: [String: String] = [:]
         var sourceFiles: [String: URL] = [:]
         for ls in chosen.languageSections {
-            guard let locale = identifyLocale(fromHeading: ls.heading) else { continue }
+            guard let locale = cachedLocale(for: ls.heading) else { continue }
             let blocks = extractCodeBlockContents(ls.body)
             guard let body = blocks.first else { continue }
             let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -137,13 +146,7 @@ extension ReleaseNotesParser {
     }
 
     func extractVersionFromLogHeading(_ heading: String) -> String? {
-        let pattern = #"v?(\d+\.\d+(?:\.\d+)?)"#
-        guard let range = heading.range(of: pattern, options: .regularExpression) else {
-            return nil
-        }
-        var matched = String(heading[range])
-        if matched.lowercased().hasPrefix("v") { matched.removeFirst() }
-        return matched
+        ReleaseNotesParser.firstVersionMatch(in: heading)
     }
 
     func chooseLogVersionSection(
@@ -207,7 +210,9 @@ extension ReleaseNotesParser {
         ("🇭🇷", "hr"),
     ]
 
-    /// Order matters — more specific entries first. Lower-cased for case-insensitive match.
+    /// Order matters — more specific entries first. Keys are already
+    /// lowercased: `identifyLocale` lowercases the heading once and matches
+    /// with `contains`, so no per-entry `lowercased()` copies are made.
     static let languageNameToLocale: [(String, String)] = [
         ("简体中文", "zh-Hans"),
         ("繁體中文", "zh-Hant"),
@@ -289,9 +294,9 @@ extension ReleaseNotesParser {
         // 3. Language name + optional region override from parens.
         let regionFromParens = detectRegion(inParens: heading)
         let lower = heading.lowercased()
-        for (name, defaultLocale) in Self.languageNameToLocale where lower.contains(name.lowercased()) {
+        for (name, defaultLocale) in Self.languageNameToLocale where lower.contains(name) {
             if let region = regionFromParens,
-                let withRegion = combineLanguageWithRegion(name: name.lowercased(), region: region)
+                let withRegion = combineLanguageWithRegion(name: name, region: region)
             {
                 return withRegion
             }
@@ -306,35 +311,40 @@ extension ReleaseNotesParser {
         return nil
     }
 
+    /// Capture content inside the FIRST `(...)` or full-width `（...）` group.
+    private static let parenPattern = try! NSRegularExpression(pattern: #"[（(]([^）)]+)[）)]"#)
+
     func detectRegion(inParens heading: String) -> String? {
-        // Capture content inside the FIRST `(...)` or full-width `（...）` group.
-        let parenPattern = #"[（(]([^）)]+)[）)]"#
-        guard let range = heading.range(of: parenPattern, options: .regularExpression) else {
+        let range = NSRange(heading.startIndex..<heading.endIndex, in: heading)
+        guard let match = Self.parenPattern.firstMatch(in: heading, range: range),
+            let chunkRange = Range(match.range, in: heading)
+        else {
             return nil
         }
-        let chunk = String(heading[range])
+        let chunk = String(heading[chunkRange])
         for (hint, region) in Self.regionHints where chunk.localizedCaseInsensitiveContains(hint) {
             return region
         }
         return nil
     }
 
+    /// Only languages that have multiple App Store Connect variants.
+    private static let languageRegionCombinations: [String: [String: String]] = [
+        "english": ["US": "en-US", "GB": "en-GB", "AU": "en-AU", "CA": "en-CA"],
+        "español": ["ES": "es-ES", "MX": "es-MX"],
+        "espanol": ["ES": "es-ES", "MX": "es-MX"],
+        "spanish": ["ES": "es-ES", "MX": "es-MX"],
+        "français": ["FR": "fr-FR", "CA": "fr-CA"],
+        "francais": ["FR": "fr-FR", "CA": "fr-CA"],
+        "french": ["FR": "fr-FR", "CA": "fr-CA"],
+        "português": ["BR": "pt-BR", "PT": "pt-PT"],
+        "portugues": ["BR": "pt-BR", "PT": "pt-PT"],
+        "portuguese": ["BR": "pt-BR", "PT": "pt-PT"],
+        "chinese": ["CN": "zh-Hans", "TW": "zh-Hant", "HK": "zh-Hant", "SG": "zh-Hans"],
+    ]
+
     func combineLanguageWithRegion(name: String, region: String) -> String? {
-        // Only languages that have multiple App Store Connect variants.
-        let combinations: [String: [String: String]] = [
-            "english": ["US": "en-US", "GB": "en-GB", "AU": "en-AU", "CA": "en-CA"],
-            "español": ["ES": "es-ES", "MX": "es-MX"],
-            "espanol": ["ES": "es-ES", "MX": "es-MX"],
-            "spanish": ["ES": "es-ES", "MX": "es-MX"],
-            "français": ["FR": "fr-FR", "CA": "fr-CA"],
-            "francais": ["FR": "fr-FR", "CA": "fr-CA"],
-            "french": ["FR": "fr-FR", "CA": "fr-CA"],
-            "português": ["BR": "pt-BR", "PT": "pt-PT"],
-            "portugues": ["BR": "pt-BR", "PT": "pt-PT"],
-            "portuguese": ["BR": "pt-BR", "PT": "pt-PT"],
-            "chinese": ["CN": "zh-Hans", "TW": "zh-Hant", "HK": "zh-Hant", "SG": "zh-Hans"],
-        ]
-        return combinations[name]?[region]
+        Self.languageRegionCombinations[name]?[region]
     }
 
     /// Region hints written in parens after a language name. Order from most

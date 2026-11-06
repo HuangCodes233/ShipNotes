@@ -1,5 +1,19 @@
 import Foundation
 
+enum OpenAIAPIFormat: String, CaseIterable, Identifiable, Sendable {
+    case chatCompletions
+    case responses
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .chatCompletions: return "Chat Completions (/chat/completions)"
+        case .responses: return "Responses (/responses)"
+        }
+    }
+}
+
 enum AIProfileRole: String, CaseIterable, Identifiable, Sendable {
     case text
     case vision
@@ -27,7 +41,7 @@ enum AIProvider: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .none: return L("None")
         case .anthropic: return "Anthropic Claude"
-        case .openai: return "OpenAI"
+        case .openai: return L("OpenAI / Compatible")
         }
     }
 
@@ -99,6 +113,13 @@ enum AIProvider: String, CaseIterable, Identifiable, Sendable {
         switch role {
         case .text: return "shipnotes.ai.\(rawValue).model"
         case .vision: return "shipnotes.ai.vision.\(rawValue).model"
+        }
+    }
+
+    func apiFormatDefaultsKey(for role: AIProfileRole) -> String {
+        switch role {
+        case .text: return "shipnotes.ai.\(rawValue).apiFormat"
+        case .vision: return "shipnotes.ai.vision.\(rawValue).apiFormat"
         }
     }
 }

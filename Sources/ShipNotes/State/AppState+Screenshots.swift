@@ -26,7 +26,7 @@ extension AppState {
             }
             do {
                 let work = Task.detached(priority: .userInitiated) {
-                    let scan = try ScreenshotScanner().scan(url: url)
+                    let scan = try await ScreenshotScanner().scan(url: url)
                     let detection =
                         requirementKey != nil
                         ? ScreenshotIPadSupportDetector.detect(from: url)

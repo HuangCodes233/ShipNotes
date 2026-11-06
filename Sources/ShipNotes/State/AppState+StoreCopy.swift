@@ -23,6 +23,7 @@ extension AppState {
     }
 
     func updateStoreCopyField(for locale: String, field: StoreCopyField, text: String) {
+        guard allowWorkspaceMutation() else { return }
         guard let index = storeCopyLocales.firstIndex(where: { $0.locale == locale }) else { return }
         // URLs never legitimately carry surrounding whitespace, and raw
         // whitespace fails Apple's RFC 3986 check.
@@ -36,6 +37,7 @@ extension AppState {
     }
 
     func revertStoreCopyToRemote(_ locale: String) {
+        guard allowWorkspaceMutation() else { return }
         guard let index = storeCopyLocales.firstIndex(where: { $0.locale == locale }) else { return }
         storeCopyLocales[index].localMetadata = storeCopyLocales[index].remoteMetadata ?? .empty
         recalculateStoreCopy(at: index)
@@ -43,6 +45,7 @@ extension AppState {
     }
 
     func optimizeStoreCopyLocale(_ locale: String) {
+        guard allowWorkspaceMutation() else { return }
         guard !isAIRunning else { return }
         guard let copy = storeCopyLocales.first(where: { $0.locale == locale }) else { return }
         guard aiService.isConfigured else {
@@ -71,6 +74,7 @@ extension AppState {
                 guard self.selectedAppId == requestedAppId,
                     self.selectedVersionId == requestedVersionId
                 else { return }
+                guard self.allowWorkspaceMutation() else { return }
                 guard let index = self.storeCopyLocales.firstIndex(where: { $0.locale == locale }) else { return }
                 self.bumpAICallCount()
                 // Apply AI text only to fields still holding what was sent;
@@ -96,6 +100,7 @@ extension AppState {
     }
 
     func syncStoreCopyLocale(_ locale: String) {
+        guard allowWorkspaceMutation() else { return }
         guard !isSyncing else { return }
         cancelSync()
         syncGeneration = UUID()
@@ -104,6 +109,7 @@ extension AppState {
     }
 
     func syncStoreCopyField(locale: String, field: StoreCopyField) {
+        guard allowWorkspaceMutation() else { return }
         guard !isSyncing else { return }
         cancelSync()
         syncGeneration = UUID()
@@ -112,6 +118,7 @@ extension AppState {
     }
 
     func syncAllStoreCopy() {
+        guard allowWorkspaceMutation() else { return }
         guard !isSyncing else { return }
         cancelSync()
         syncGeneration = UUID()
@@ -140,13 +147,16 @@ extension AppState {
     }
 
     func loadStoreCopySource(_ url: URL) {
+        guard allowWorkspaceMutation() else { return }
         storeCopySourceURL = url
         let parser = self.storeCopyParser
         let defaultLocale = selectedStoreCopyLocale ?? selectedLocale
         let requestedAppId = selectedAppId
         let requestedVersionId = selectedVersionId
 
+        workspaceImportRequestsInFlight += 1
         Task {
+            defer { workspaceImportRequestsInFlight -= 1 }
             // Parsing + the nearby-source directory walk are file I/O; keep
             // them off the main actor (parser is a stateless struct).
             let outcome = await Task.detached(priority: .userInitiated) { () -> StoreCopyLoadOutcome in
@@ -176,6 +186,7 @@ extension AppState {
                 selectedVersionId == requestedVersionId
             else { return }
 
+            guard allowWorkspaceMutation() else { return }
             switch outcome {
             case .parsed(let parsed, let source):
                 clearLastErrorPreservingWorkspaceDraftError()
@@ -281,6 +292,7 @@ extension AppState {
     }
 
     func askAIToParseStoreCopy(url: URL) {
+        guard allowWorkspaceMutation() else { return }
         let defaultLocale = selectedStoreCopyLocale ?? selectedLocale
         let known = Set(storeCopyLocales.map(\.locale))
             .union(remoteNotesByLocale.keys)
@@ -311,6 +323,7 @@ extension AppState {
         requestedAppId: String?,
         requestedVersionId: String?
     ) async {
+        guard allowWorkspaceMutation() else { return }
         guard selectedAppId == requestedAppId,
             selectedVersionId == requestedVersionId
         else { return }
@@ -341,6 +354,7 @@ extension AppState {
                 selectedAppId == requestedAppId,
                 selectedVersionId == requestedVersionId
             else { return }
+            guard allowWorkspaceMutation() else { return }
             let partials = Dictionary(
                 uniqueKeysWithValues: metadata.map { locale, fields in
                     (locale, Self.partialStoreMetadata(from: fields))
@@ -403,6 +417,7 @@ extension AppState {
     }
 
     func applyImportedStoreCopy(_ parsed: ParsedStoreCopy) {
+        guard allowWorkspaceMutation() else { return }
         saveCurrentWorkspaceDraft()
         var importedLocales: [String] = []
         for (locale, partial) in parsed.locales {
@@ -580,8 +595,27 @@ extension AppState {
         return true
     }
 
+    private struct StoreCopyLocalePatch: Sendable {
+        let locale: String
+        let metadata: StoreMetadataFields
+        let knownLocalizationId: String?
+        let whatsNewFallback: String
+    }
+
+    private enum StoreCopyPatchOutcome: Sendable {
+        case succeeded(StoreCopyLocalePatch, RemoteLocaleNote)
+        case failed(locale: String, message: String, category: AppError.Category)
+        case cancelled
+    }
+
     /// Returns false when any locale failed, so submit-for-review can abort
     /// without relying on the global `lastError`.
+    ///
+    /// Locales are independent PATCHes: planned serially on the main actor,
+    /// sent through the bounded concurrency map (4 in flight, matching
+    /// release-notes sync and screenshot uploads), and landed in one
+    /// staleness-guarded pass — a response that arrives after the user moved
+    /// to another app/version is never written.
     @discardableResult
     func syncLiveStoreCopyLocales(_ locales: [String], generation: UUID? = nil) async -> Bool {
         guard let service = appStoreService, let versionId = selectedVersionId else { return false }
@@ -589,71 +623,22 @@ extension AppState {
         recoverStaleStoreCopyStates()
         let activity = beginSyncActivity()
         defer { endSyncActivity(activity) }
+        if isStaleSync(generation: generation, appId: requestedAppId, versionId: versionId) { return false }
 
         var results: [String: LocaleSyncResult] = [:]
+        var plans: [StoreCopyLocalePatch] = []
         for locale in locales {
-            // Same staleness guard as release-notes sync: a response landing
-            // after the user switched app/version must not be written into
-            // the new selection.
-            if isStaleSync(generation: generation, appId: requestedAppId, versionId: versionId) { return false }
-
             guard let index = storeCopyLocales.firstIndex(where: { $0.locale == locale }) else { continue }
             let row = storeCopyLocales[index]
             switch row.status {
             case .ready, .needsReview:
+                plans.append(
+                    StoreCopyLocalePatch(
+                        locale: locale,
+                        metadata: row.localMetadata,
+                        knownLocalizationId: row.remoteLocalizationId,
+                        whatsNewFallback: localeNotes.first { $0.locale == locale }?.localText ?? ""))
                 storeCopyLocales[index].status = .syncing
-                do {
-                    let localizationId: String
-                    if let existingId = row.remoteLocalizationId {
-                        localizationId = existingId
-                    } else {
-                        let whatsNew = localeNotes.first { $0.locale == locale }?.localText ?? ""
-                        localizationId = try await ensureLocalizationId(
-                            for: locale,
-                            versionId: versionId,
-                            service: service,
-                            text: whatsNew
-                        )
-                    }
-
-                    let remote = try await service.updateStoreMetadata(
-                        localizationId: localizationId,
-                        metadata: row.localMetadata
-                    )
-                    if isStaleSync(generation: generation, appId: requestedAppId, versionId: versionId) { return false }
-                    remoteNotesByLocale[locale] = remote
-                    applyRemoteIdentity(remote)
-                    if let updatedIndex = storeCopyLocales.firstIndex(where: { $0.locale == locale }) {
-                        storeCopyLocales[updatedIndex].remoteLocalizationId = remote.localizationId
-                        storeCopyLocales[updatedIndex].remoteMetadata = remote.storeMetadata
-                        // A version-localization response does not contain app-info fields.
-                        // Preserve those drafts, and any edits made during the request.
-                        for field in StoreCopyField.allCases where field.isVersionLocalizationField {
-                            if storeCopyLocales[updatedIndex].localMetadata.value(for: field)
-                                == row.localMetadata.value(for: field)
-                            {
-                                storeCopyLocales[updatedIndex].localMetadata.setValue(
-                                    remote.storeMetadata.value(for: field), for: field)
-                            }
-                        }
-                        recalculateStoreCopy(at: updatedIndex)
-                        if storeCopyLocales[updatedIndex].changedFieldCount == 0,
-                            storeCopyLocales[updatedIndex].validationIssues.allSatisfy({ $0.severity != .error })
-                        {
-                            storeCopyLocales[updatedIndex].status = .synced
-                        }
-                    }
-                    results[locale] = .succeeded
-                    scheduleWorkspaceDraftSave()
-                } catch {
-                    if Self.isCancellation(error) { return false }
-                    if isStaleSync(generation: generation, appId: requestedAppId, versionId: versionId) { return false }
-                    if let updatedIndex = storeCopyLocales.firstIndex(where: { $0.locale == locale }) {
-                        storeCopyLocales[updatedIndex].status = .failed(error.localizedDescription)
-                    }
-                    results[locale] = .failed(error.localizedDescription)
-                    handleError(error)
-                }
             case .overLimit:
                 setError(L("Store copy has fields over the App Store limit."))
                 results[locale] = .failed(L("Store copy has fields over the App Store limit."))
@@ -672,6 +657,83 @@ extension AppState {
                 continue
             }
         }
+
+        var cancelled = false
+        if !plans.isEmpty {
+            let outcomes = await mapConcurrently(plans, maxConcurrent: 4) { plan -> StoreCopyPatchOutcome in
+                do {
+                    try Task.checkCancellation()
+                    let localizationId = try await self.ensureLocalizationId(
+                        for: plan.locale,
+                        versionId: versionId,
+                        service: service,
+                        text: plan.whatsNewFallback,
+                        knownLocalizationId: plan.knownLocalizationId
+                    )
+                    let remote = try await service.updateStoreMetadata(
+                        localizationId: localizationId,
+                        metadata: plan.metadata
+                    )
+                    return .succeeded(plan, remote)
+                } catch {
+                    // A cancelled request is not a failure for the banner or
+                    // sync history.
+                    if Self.isCancellation(error) { return .cancelled }
+                    return .failed(
+                        locale: plan.locale,
+                        message: error.localizedDescription,
+                        category: Self.category(for: error))
+                }
+            }
+            // Same staleness guard as release-notes sync: a response landing
+            // after the user switched app/version must not be written into
+            // the new selection.
+            if isStaleSync(generation: generation, appId: requestedAppId, versionId: versionId) { return false }
+            for outcome in outcomes {
+                switch outcome {
+                case let .succeeded(plan, remote):
+                    let locale = plan.locale
+                    remoteNotesByLocale[locale] = remote
+                    applyRemoteIdentity(remote)
+                    if let updatedIndex = storeCopyLocales.firstIndex(where: { $0.locale == locale }) {
+                        storeCopyLocales[updatedIndex].remoteLocalizationId = remote.localizationId
+                        storeCopyLocales[updatedIndex].remoteMetadata = remote.storeMetadata
+                        // A version-localization response does not contain app-info fields.
+                        // Preserve those drafts, and any edits made during the request.
+                        for field in StoreCopyField.allCases where field.isVersionLocalizationField {
+                            if storeCopyLocales[updatedIndex].localMetadata.value(for: field)
+                                == plan.metadata.value(for: field)
+                            {
+                                storeCopyLocales[updatedIndex].localMetadata.setValue(
+                                    remote.storeMetadata.value(for: field), for: field)
+                            }
+                        }
+                        recalculateStoreCopy(at: updatedIndex)
+                        if storeCopyLocales[updatedIndex].changedFieldCount == 0,
+                            storeCopyLocales[updatedIndex].validationIssues.allSatisfy({ $0.severity != .error })
+                        {
+                            storeCopyLocales[updatedIndex].status = .synced
+                        }
+                    }
+                    results[locale] = .succeeded
+                    scheduleWorkspaceDraftSave()
+                case let .failed(locale, message, category):
+                    if let updatedIndex = storeCopyLocales.firstIndex(where: { $0.locale == locale }) {
+                        storeCopyLocales[updatedIndex].status = .failed(message)
+                    }
+                    results[locale] = .failed(message)
+                    // Same banner handleError would have produced.
+                    self.lastError = AppError(
+                        message,
+                        category: category,
+                        recoverySuggestion: Self.recoverySuggestion(for: category),
+                        isRetryable: category == .network || category == .appStoreConnect)
+                case .cancelled:
+                    cancelled = true
+                }
+            }
+        }
+        if cancelled { return false }
 
         if !results.isEmpty {
             recordSyncRun(
@@ -711,18 +773,13 @@ extension AppState {
         storeCopyLocales[index].status = .syncing
 
         do {
-            let localizationId: String
-            if let existingId = row.remoteLocalizationId {
-                localizationId = existingId
-            } else {
-                let whatsNew = localeNotes.first { $0.locale == locale }?.localText ?? ""
-                localizationId = try await ensureLocalizationId(
-                    for: locale,
-                    versionId: versionId,
-                    service: service,
-                    text: whatsNew
-                )
-            }
+            let localizationId = try await ensureLocalizationId(
+                for: locale,
+                versionId: versionId,
+                service: service,
+                text: localeNotes.first { $0.locale == locale }?.localText ?? "",
+                knownLocalizationId: row.remoteLocalizationId
+            )
 
             let value = row.localMetadata.value(for: field)
             let remote = try await service.updateStoreMetadataField(

@@ -28,6 +28,7 @@ struct ContentView: View {
         @Bindable var state = state
 
         splitLayout
+            .disabled(state.isFinalizingReviewSubmission)
             .preferredColorScheme((AppearanceOption(rawValue: appearanceRaw) ?? .system).colorScheme)
             .toolbar { mainToolbar }
             .safeAreaInset(edge: .top, spacing: 0) {

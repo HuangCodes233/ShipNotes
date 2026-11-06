@@ -117,6 +117,7 @@ extension ReleaseNotesParser {
         var sections: [MarkdownSection] = []
         var currentTitle: String?
         var currentLines: [String] = []
+        var insideCodeFence = false
 
         func flush() {
             guard let currentTitle else { return }
@@ -126,6 +127,16 @@ extension ReleaseNotesParser {
         }
 
         for line in text.components(separatedBy: .newlines) {
+            // Code-fence-aware: `## x` inside ``` is content, not a heading.
+            if line.trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                insideCodeFence.toggle()
+                if currentTitle != nil { currentLines.append(line) }
+                continue
+            }
+            if insideCodeFence {
+                if currentTitle != nil { currentLines.append(line) }
+                continue
+            }
             if isLevelTwoHeading(line) {
                 flush()
                 currentTitle = cleanHeadingTitle(line)
@@ -158,30 +169,30 @@ extension ReleaseNotesParser {
         return result
     }
 
+    /// Whole-line `---` sub-section separator, precompiled: the scan below
+    /// runs per line of every release-notes code block.
+    private static let dashDivider = try! NSRegularExpression(pattern: #"^---\s*$"#)
+
     func extractReleaseNotes(fromCodeBlock releaseNotesBlock: String, matchingVersion: String?) -> String {
         // Sub-section separator commonly is `---` on its own line. Split on
         // whole separator lines only — `components(separatedBy: "---")` would
         // also cut inside body text like "a---b".
-        let subSections: [String]
-        if releaseNotesBlock.range(of: #"(?m)^---\s*$"#, options: .regularExpression) != nil {
-            var chunks: [String] = []
-            var current: [String] = []
-            for line in releaseNotesBlock.components(separatedBy: .newlines) {
-                if line.range(of: #"^---\s*$"#, options: .regularExpression) != nil {
-                    chunks.append(current.joined(separator: "\n"))
-                    current.removeAll()
-                } else {
-                    current.append(line)
-                }
+        var chunks: [String] = []
+        var current: [String] = []
+        for line in releaseNotesBlock.components(separatedBy: .newlines) {
+            let range = NSRange(line.startIndex..<line.endIndex, in: line)
+            if Self.dashDivider.firstMatch(in: line, range: range) != nil {
+                chunks.append(current.joined(separator: "\n"))
+                current.removeAll()
+            } else {
+                current.append(line)
             }
-            chunks.append(current.joined(separator: "\n"))
-            subSections =
-                chunks
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-        } else {
-            subSections = [releaseNotesBlock.trimmingCharacters(in: .whitespacesAndNewlines)]
         }
+        chunks.append(current.joined(separator: "\n"))
+        let subSections =
+            chunks
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
 
         // Prefer the sub-section that mentions the currently-selected version.
         // `(?![.\d])` keeps `3.0` from matching inside `3.0.1` — `\b` alone
@@ -270,7 +281,8 @@ extension ReleaseNotesParser {
     func stripVersionHeader(_ text: String) -> String {
         var lines = text.components(separatedBy: .newlines)
         guard let first = lines.first?.trimmingCharacters(in: .whitespaces) else { return text }
-        let hasVersion = first.range(of: #"v?\d+\.\d+(?:\.\d+)?"#, options: .regularExpression) != nil
+        let firstRange = NSRange(first.startIndex..<first.endIndex, in: first)
+        let hasVersion = ReleaseNotesParser.versionPattern.firstMatch(in: first, range: firstRange) != nil
         let looksLikeHeader = first.hasSuffix(":") || first.hasPrefix("#") || first.count < 80
         if hasVersion && looksLikeHeader {
             lines.removeFirst()

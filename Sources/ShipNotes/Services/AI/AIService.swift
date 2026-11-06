@@ -134,11 +134,22 @@ struct ScreenshotLocaleAssignment: Hashable, Sendable {
 protocol ScreenshotVisionAIService: Sendable {
     var isConfigured: Bool { get }
 
+    /// Validate the saved vision profile with a small text-only request. This
+    /// checks authentication and endpoint access without reading user images.
+    func testConnection() async throws
+
     func classifyScreenshotLocales(
         assets: [ScreenshotAsset],
         knownLocales: [String],
         appName: String?
     ) async throws -> [ScreenshotLocaleAssignment]
+}
+
+extension ScreenshotVisionAIService {
+    func testConnection() async throws {
+        guard isConfigured else { throw AIServiceError.notConfigured }
+        throw AIServiceError.invalidResponse("This vision service does not support connection tests")
+    }
 }
 
 struct UnconfiguredScreenshotVisionAIService: ScreenshotVisionAIService {

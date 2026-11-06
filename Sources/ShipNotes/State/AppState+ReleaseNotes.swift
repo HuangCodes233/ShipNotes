@@ -7,6 +7,7 @@ import AppKit
 @MainActor
 extension AppState {
     func askAIToParse(url: URL) {
+        guard allowWorkspaceMutation() else { return }
         let version = selectedVersion?.versionString
         let known = remoteNotesByLocale.keys.sorted()
         let requestedAppId = selectedAppId
@@ -47,7 +48,14 @@ extension AppState {
         askAIToParse(url: url)
     }
 
+    /// `Result`'s failure side must be an `Error`; this box carries the
+    /// failure message out of a parallel translation worker.
+    private struct TranslationFailure: Error, Sendable {
+        let message: String
+    }
+
     func translateAllEmptyLocales(from sourceLocale: String) {
+        guard allowWorkspaceMutation() else { return }
         guard !isAIRunning else { return }
         guard let sourceText = localeNotes.first(where: { $0.locale == sourceLocale })?.localText,
             !sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -84,17 +92,13 @@ extension AppState {
                 self.isAIRunning = false
                 self.aiActivity = nil
             }
-            var lastFailure: String?
-            for (index, target) in targets.enumerated() {
-                guard self.selectedAppId == requestedAppId,
-                    self.selectedVersionId == requestedVersionId
-                else { return }
-                let currentStart = Date()
-                let progressIndex = index + 1
-                self.aiActivity = AIActivity(
-                    startedAt: currentStart,
-                    message: L("AI is translating %1$@ (%2$d / %3$d)…", target, progressIndex, totalCount)
-                )
+            // Targets share one source text and never depend on each other, so
+            // run them through the bounded-concurrency map instead of a serial
+            // chain that takes minutes at 30 locales.
+            let outcomes = await mapConcurrently(
+                targets,
+                maxConcurrent: 3
+            ) { target -> Result<String, TranslationFailure> in
                 do {
                     let translated = try await captured.translate(
                         text: sourceText,
@@ -102,26 +106,32 @@ extension AppState {
                         toLocale: target,
                         glossary: [:]
                     )
-                    // Bail (silently) if the user switched selection mid-run -
-                    // the translations belong to the version they started from.
-                    guard self.selectedAppId == requestedAppId,
-                        self.selectedVersionId == requestedVersionId
-                    else { return }
+                    return .success(translated)
+                } catch {
+                    return .failure(TranslationFailure(message: error.localizedDescription))
+                }
+            }
+            // Bail (silently) if the user switched selection mid-run - the
+            // translations belong to the version they started from.
+            guard self.selectedAppId == requestedAppId,
+                self.selectedVersionId == requestedVersionId
+            else { return }
+            var lastFailure: String?
+            for (target, outcome) in zip(targets, outcomes) {
+                switch outcome {
+                case .success(let translated):
                     self.bumpAICallCount()
-                    // Targets were chosen because they were empty. A long run
-                    // can take minutes; never replace text typed meanwhile.
+                    // Targets were chosen because they were empty; never
+                    // replace text typed while the run was in flight.
                     let stillEmpty =
                         self.localeNotes.first { $0.locale == target }?
                         .localText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? false
                     if stillEmpty {
                         self.updateLocalText(for: target, text: translated)
                     }
-                } catch {
-                    guard self.selectedAppId == requestedAppId,
-                        self.selectedVersionId == requestedVersionId
-                    else { return }
-                    lastFailure = error.localizedDescription
-                    // Continue translating other locales rather than abort.
+                case .failure(let failure):
+                    // Keep applying other locales' translations.
+                    lastFailure = failure.message
                 }
             }
             self.lastError = lastFailure.map {
@@ -131,6 +141,7 @@ extension AppState {
     }
 
     func translateLocale(_ targetLocale: String, fromLocale sourceLocale: String) {
+        guard allowWorkspaceMutation() else { return }
         guard !isAIRunning else { return }
         guard sourceLocale != targetLocale else { return }
         guard let sourceText = localeNotes.first(where: { $0.locale == sourceLocale })?.localText,
@@ -190,6 +201,7 @@ extension AppState {
         requestedAppId: String?,
         requestedVersionId: String?
     ) async {
+        guard allowWorkspaceMutation() else { return }
         guard selectedAppId == requestedAppId,
             selectedVersionId == requestedVersionId
         else { return }
@@ -218,6 +230,7 @@ extension AppState {
                 selectedAppId == requestedAppId,
                 selectedVersionId == requestedVersionId
             else { return }
+            guard allowWorkspaceMutation() else { return }
             let sourceFiles = Dictionary(uniqueKeysWithValues: locales.keys.map { ($0, url) })
             let parsed = ParsedReleaseNotes(
                 version: currentVersion,
@@ -246,6 +259,7 @@ extension AppState {
     }
 
     func loadFolder(_ url: URL) {
+        guard allowWorkspaceMutation() else { return }
         let parser = self.parser
         // Capture the selection the import was started from so a slow parse
         // can't land its result into a different app/version.
@@ -257,7 +271,9 @@ extension AppState {
         let requestID = UUID()
         folderLoadRequestID = requestID
 
+        workspaceImportRequestsInFlight += 1
         Task {
+            defer { workspaceImportRequestsInFlight -= 1 }
             // Directory walking + file reads run off the main actor; the
             // parser is a stateless struct, safe to use from a detached task.
             let outcome = await Task.detached(priority: .userInitiated) { () -> FolderLoadOutcome in
@@ -282,6 +298,7 @@ extension AppState {
                 selectedVersionId == requestedVersionId
             else { return }
 
+            guard allowWorkspaceMutation() else { return }
             switch outcome {
             case .parsed(let parsed):
                 clearLastErrorPreservingWorkspaceDraftError()
@@ -351,6 +368,7 @@ extension AppState {
     }
 
     func confirmPendingImport() {
+        guard allowWorkspaceMutation() else { return }
         guard var parsed = pendingImport else { return }
         parsed.locales = parsed.resolvedLocales(using: pendingImportSelections)
         applyImportedReleaseNotes(parsed, sourceURL: pendingImportURL)
@@ -404,6 +422,7 @@ extension AppState {
     }
 
     func importURL(_ url: URL, for mode: WorkspaceMode? = nil) {
+        guard allowWorkspaceMutation() else { return }
         switch mode ?? workspaceMode {
         case .releaseNotes:
             loadFolder(url)
@@ -442,6 +461,7 @@ extension AppState {
     }
 
     func revertToRemote(_ locale: String) {
+        guard allowWorkspaceMutation() else { return }
         guard let index = localeNotes.firstIndex(where: { $0.locale == locale }) else { return }
         localeNotes[index].localText = localeNotes[index].remoteText ?? ""
         recalculate(at: index)
@@ -457,6 +477,7 @@ extension AppState {
     }
 
     func syncLocale(_ locale: String) {
+        guard allowWorkspaceMutation() else { return }
         guard !isSyncing else { return }
         cancelSync()
         syncGeneration = UUID()
@@ -465,6 +486,7 @@ extension AppState {
     }
 
     func updateLocalText(for locale: String, text: String) {
+        guard allowWorkspaceMutation() else { return }
         guard let index = localeNotes.firstIndex(where: { $0.locale == locale }) else { return }
         localeNotes[index].localText = text
         recalculate(at: index)
@@ -522,6 +544,7 @@ extension AppState {
     }
 
     func performSync() {
+        guard allowWorkspaceMutation() else { return }
         // Never restart a running sync: cancelling mid-flight and starting
         // over is what a repeated ⌘S used to do.
         guard canPerformSyncCommand else { return }
@@ -542,6 +565,7 @@ extension AppState {
 
     /// Async version of performSync for tests — awaits completion.
     func performSyncAsync() async {
+        guard allowWorkspaceMutation() else { return }
         cancelSync()
         syncGeneration = UUID()
         let generation = syncGeneration
@@ -573,7 +597,8 @@ extension AppState {
 
     /// URLSession surfaces task cancellation as `URLError.cancelled` rather than
     /// `CancellationError`, so both spellings have to count as "user cancelled".
-    internal static func isCancellation(_ error: Error) -> Bool {
+    /// Nonisolated so parallel sync workers can classify errors off the actor.
+    internal nonisolated static func isCancellation(_ error: Error) -> Bool {
         if error is CancellationError { return true }
         return (error as? URLError)?.code == .cancelled
     }
@@ -595,6 +620,7 @@ extension AppState {
     }
 
     func applyImportedReleaseNotes(_ parsed: ParsedReleaseNotes, sourceURL: URL?) {
+        guard allowWorkspaceMutation() else { return }
         saveCurrentWorkspaceDraft()
         let sourceChanged = sourceFolder != sourceURL
         sourceFolder = sourceURL
@@ -696,9 +722,29 @@ extension AppState {
         recalculate(at: index)
     }
 
+    private struct LiveLocalePatch: Sendable {
+        let locale: String
+        let outgoing: String
+        let knownLocalizationId: String?
+        let localTextAtStart: String
+    }
+
+    private enum LiveLocalePatchOutcome: Sendable {
+        case succeeded(LiveLocalePatch, RemoteLocaleNote)
+        case failed(locale: String, message: String)
+        case cancelled
+    }
+
     /// Returns false when any locale failed (or the sync was cancelled), so
     /// callers like submit-for-review can abort without relying on the
     /// global `lastError` (which may hold an unrelated, stale message).
+    ///
+    /// Locales are independent PATCHes, so they run through the bounded
+    /// concurrency map (4 in flight, matching screenshot uploads) instead of a
+    /// serial chain that takes minutes at 30 locales. Rows are planned and
+    /// painted `.syncing` up front on the main actor; responses land back on
+    /// the main actor in one staleness-guarded pass — a superseded or
+    /// switched-away sync writes nothing.
     @discardableResult
     func syncLiveLocales(_ locales: [String], generation: UUID? = nil) async -> Bool {
         guard let service = appStoreService, let versionId = selectedVersionId else { return false }
@@ -706,67 +752,22 @@ extension AppState {
         recoverSyncingStates()
         let activity = beginSyncActivity()
         defer { endSyncActivity(activity) }
+        if isStaleSync(generation: generation, appId: requestedAppId, versionId: versionId) { return false }
 
         var results: [String: LocaleSyncResult] = [:]
-        var cancelled = false
-        localeLoop: for locale in locales {
-            // Check cancellation and generation staleness at each iteration.
-            if isStaleSync(generation: generation, appId: requestedAppId, versionId: versionId) { return false }
-
+        var plans: [LiveLocalePatch] = []
+        for locale in locales {
             guard let index = localeNotes.firstIndex(where: { $0.locale == locale }) else { continue }
             let note = localeNotes[index]
-
             switch note.status {
             case .ready, .needsReview:
-                let outgoing = transformedTextForSync(note.localText)
+                plans.append(
+                    LiveLocalePatch(
+                        locale: locale,
+                        outgoing: transformedTextForSync(note.localText),
+                        knownLocalizationId: note.remoteLocalizationId,
+                        localTextAtStart: note.localText))
                 localeNotes[index].status = .syncing
-                do {
-                    let remote: RemoteLocaleNote
-                    if let localizationId = note.remoteLocalizationId {
-                        remote = try await service.updateWhatsNew(localizationId: localizationId, text: outgoing)
-                    } else {
-                        let localizationId = try await ensureLocalizationId(
-                            for: locale,
-                            versionId: versionId,
-                            service: service,
-                            text: outgoing
-                        )
-                        remote = try await service.updateWhatsNew(localizationId: localizationId, text: outgoing)
-                    }
-                    // The response landed after one or more suspensions — the
-                    // selection may have moved on. Writing now would put this
-                    // version's text into whatever version is selected instead.
-                    if isStaleSync(generation: generation, appId: requestedAppId, versionId: versionId) { return false }
-                    remoteNotesByLocale[locale] = remote
-                    if let updatedIndex = localeNotes.firstIndex(where: { $0.locale == locale }) {
-                        localeNotes[updatedIndex].remoteLocalizationId = remote.localizationId
-                        // Only normalize the text we sent if it is still the
-                        // current draft. A user can keep editing while PATCH
-                        // is in flight; its response must not undo those edits.
-                        if localeNotes[updatedIndex].localText == note.localText {
-                            localeNotes[updatedIndex].localText = outgoing
-                        }
-                        localeNotes[updatedIndex].remoteText = remote.text
-                        recalculate(at: updatedIndex)
-                        if localeNotes[updatedIndex].localText == remote.text {
-                            localeNotes[updatedIndex].status = .synced
-                        }
-                    }
-                    scheduleWorkspaceDraftSave()
-                    results[locale] = .succeeded
-                } catch {
-                    // A cancelled request is not a failure: don't paint the row
-                    // red and don't log it to sync history.
-                    if Self.isCancellation(error) {
-                        cancelled = true
-                        break localeLoop
-                    }
-                    if isStaleSync(generation: generation, appId: requestedAppId, versionId: versionId) { return false }
-                    if let updatedIndex = localeNotes.firstIndex(where: { $0.locale == locale }) {
-                        localeNotes[updatedIndex].status = .failed(error.localizedDescription)
-                    }
-                    results[locale] = .failed(error.localizedDescription)
-                }
             case .overLimit:
                 results[locale] = .failed(L("Over character limit"))
             case .invalid:
@@ -779,6 +780,62 @@ extension AppState {
                 results[locale] = .skipped
             default:
                 results[locale] = .skipped
+            }
+        }
+
+        var cancelled = false
+        if !plans.isEmpty {
+            let outcomes = await mapConcurrently(plans, maxConcurrent: 4) { plan -> LiveLocalePatchOutcome in
+                do {
+                    try Task.checkCancellation()
+                    let localizationId = try await self.ensureLocalizationId(
+                        for: plan.locale,
+                        versionId: versionId,
+                        service: service,
+                        knownLocalizationId: plan.knownLocalizationId)
+                    let remote = try await service.updateWhatsNew(
+                        localizationId: localizationId, text: plan.outgoing)
+                    return .succeeded(plan, remote)
+                } catch {
+                    // A cancelled request is not a failure: don't paint the
+                    // row red and don't log it to sync history.
+                    if Self.isCancellation(error) { return .cancelled }
+                    return .failed(locale: plan.locale, message: error.localizedDescription)
+                }
+            }
+            // The responses landed after one or more suspensions — the
+            // selection may have moved on. Writing now would put this
+            // version's text into whatever version is selected instead.
+            if isStaleSync(generation: generation, appId: requestedAppId, versionId: versionId) { return false }
+            for outcome in outcomes {
+                switch outcome {
+                case let .succeeded(plan, remote):
+                    let locale = plan.locale
+                    remoteNotesByLocale[locale] = remote
+                    if let updatedIndex = localeNotes.firstIndex(where: { $0.locale == locale }) {
+                        localeNotes[updatedIndex].remoteLocalizationId = remote.localizationId
+                        // Only normalize the text we sent if it is still the
+                        // current draft. A user can keep editing while PATCH
+                        // is in flight; its response must not undo those edits.
+                        if localeNotes[updatedIndex].localText == plan.localTextAtStart {
+                            localeNotes[updatedIndex].localText = plan.outgoing
+                        }
+                        localeNotes[updatedIndex].remoteText = remote.text
+                        recalculate(at: updatedIndex)
+                        if localeNotes[updatedIndex].localText == remote.text {
+                            localeNotes[updatedIndex].status = .synced
+                        }
+                    }
+                    scheduleWorkspaceDraftSave()
+                    results[locale] = .succeeded
+                case let .failed(locale, message):
+                    if let updatedIndex = localeNotes.firstIndex(where: { $0.locale == locale }) {
+                        localeNotes[updatedIndex].status = .failed(message)
+                    }
+                    results[locale] = .failed(message)
+                case .cancelled:
+                    cancelled = true
+                }
             }
         }
         // A superseded sync must not touch rows: the newer sync may already

@@ -21,6 +21,16 @@ struct ScreenshotProcessingPolling: Sendable {
     }
 }
 
+/// Status requests can fail after the bytes are already uploaded. Preserve
+/// their IDs for a safe retry while retaining the actual request error.
+struct ScreenshotProcessingRequestError: LocalizedError, Sendable {
+    let reservation: ScreenshotProcessingReservation
+    let underlyingError: any Error
+    var remoteSetConfirmedMissing = false
+
+    var errorDescription: String? { underlyingError.localizedDescription }
+}
+
 // Screenshot set fetch, multipart upload, and replacement.
 extension AppStoreConnectClient {
     func replaceScreenshots(
@@ -143,7 +153,7 @@ extension AppStoreConnectClient {
             outcome = try await waitForScreenshotProcessing(
                 reservation.uploaded, setId: reservation.setId, polling: polling)
         } catch {
-            throw ScreenshotProcessingPendingError(reservation: reservation)
+            throw await screenshotProcessingRequestError(error, reservation: reservation)
         }
         for failure in outcome.failures {
             if removesRejectedUploads { await discardScreenshot(id: failure.id) }
@@ -167,10 +177,39 @@ extension AppStoreConnectClient {
                     body: ASCAppScreenshotOrderRequest(ids: uploadedIDs)
                 )
             } catch {
-                throw ScreenshotProcessingPendingError(reservation: reservation)
+                throw await screenshotProcessingRequestError(error, reservation: reservation)
             }
         }
         return uploadedIDs.count
+    }
+
+    private func screenshotProcessingRequestError(
+        _ error: any Error,
+        reservation: ScreenshotProcessingReservation
+    ) async -> ScreenshotProcessingRequestError {
+        var result = ScreenshotProcessingRequestError(reservation: reservation, underlyingError: error)
+        guard case AppStoreConnectClientError.requestFailed(statusCode: 404, _) = error,
+            !Task.isCancelled
+        else { return result }
+        // A relationship endpoint can return 404 for reasons other than its
+        // parent set being gone. Confirm absence with an independent read;
+        // failed/unauthorized confirmation must leave the queue recoverable.
+        do {
+            let sets = try await requestCollection(
+                ASCAppScreenshotSetResource.self,
+                path: "appStoreVersionLocalizations/\(reservation.localizationId)/appScreenshotSets",
+                queryItems: [
+                    URLQueryItem(name: "limit", value: "50"),
+                    URLQueryItem(name: "fields[appScreenshotSets]", value: "screenshotDisplayType"),
+                ]
+            )
+            result.remoteSetConfirmedMissing = !sets.contains { $0.id == reservation.setId }
+        } catch {
+            // Surface a failed confirmation too (for example credentials that
+            // were revoked between requests), without releasing the queue.
+            return ScreenshotProcessingRequestError(reservation: reservation, underlyingError: error)
+        }
+        return result
     }
 
     /// One set request per poll covers all uploaded screenshots. Every sleep

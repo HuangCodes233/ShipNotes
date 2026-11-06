@@ -52,13 +52,16 @@ extension ReleaseNotesParser {
         var body: String
     }
 
+    /// Section separator: 2+ dashes, content, 2+ dashes. Tolerates spaces.
+    /// Precompiled — this runs against every line of every candidate file.
+    private static let dashSeparator = try! NSRegularExpression(
+        pattern: #"^-{2,}\s*(.+?)\s*-{2,}\s*$"#)
+
     func parseDashSeparatedSections(_ text: String) -> [DashSection] {
         var sections: [DashSection] = []
         var currentHeading: String?
         var currentBody: [String] = []
-
-        // Section separator: 2+ dashes, content, 2+ dashes. Tolerates spaces.
-        let pattern = #"^-{2,}\s*(.+?)\s*-{2,}\s*$"#
+        var insideCodeFence = false
 
         func flush() {
             guard let heading = currentHeading else { return }
@@ -72,15 +75,25 @@ extension ReleaseNotesParser {
         }
 
         for line in text.components(separatedBy: .newlines) {
-            if let range = line.range(of: pattern, options: .regularExpression) {
-                flush()
-                // Strip leading/trailing dashes + whitespace to get just the heading.
-                let raw = String(line[range])
+            // Code-fence-aware: a `--- 日本語 ---` line inside ``` is content,
+            // not a section boundary.
+            if line.trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                insideCodeFence.toggle()
+                if currentHeading != nil { currentBody.append(line) }
+                continue
+            }
+            if insideCodeFence {
+                if currentHeading != nil { currentBody.append(line) }
+                continue
+            }
+            let range = NSRange(line.startIndex..<line.endIndex, in: line)
+            if Self.dashSeparator.firstMatch(in: line, range: range) != nil {
+                let raw = line.trimmingCharacters(in: .whitespaces)
                 let trimmed =
                     raw
-                    .trimmingCharacters(in: .whitespaces)
                     .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
                     .trimmingCharacters(in: .whitespaces)
+                flush()
                 currentHeading = trimmed
                 continue
             }
@@ -93,10 +106,6 @@ extension ReleaseNotesParser {
     }
 
     func inferVersionFromText(_ text: String) -> String? {
-        let pattern = #"v?(\d+\.\d+(?:\.\d+)?)"#
-        guard let range = text.range(of: pattern, options: .regularExpression) else { return nil }
-        var s = String(text[range])
-        if s.lowercased().hasPrefix("v") { s.removeFirst() }
-        return s
+        ReleaseNotesParser.firstVersionMatch(in: text)
     }
 }

@@ -270,7 +270,7 @@ struct StoreCopyComparePanel: View {
     let remoteText: String?
 
     @State private var diffLines: [DiffLine] = []
-    @State private var lastKey = ""
+    @State private var lastInput: DiffInput?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -309,17 +309,23 @@ struct StoreCopyComparePanel: View {
         }
         .padding(10)
         .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .task(id: textKey) { recomputeDiff() }
+        .task(id: input) { await recomputeDiff() }
     }
 
-    private var textKey: String {
-        "\(remoteText ?? "")\u{1F}\(localText)"
+    private var input: DiffInput {
+        DiffInput(old: remoteText ?? "", new: localText)
     }
 
-    private func recomputeDiff() {
-        guard textKey != lastKey else { return }
-        lastKey = textKey
-        diffLines = DiffEngine().diff(old: remoteText ?? "", new: localText)
+    private func recomputeDiff() async {
+        let requested = input
+        guard requested != lastInput else { return }
+        do {
+            try await Task.sleep(for: .milliseconds(100))
+            let lines = try await DiffEngine.render(requested)
+            guard !Task.isCancelled, input == requested else { return }
+            diffLines = lines
+            lastInput = requested
+        } catch { /* A newer edit cancels the previous render. */  }
     }
 
     private func legend(title: String, color: Color, symbol: String) -> some View {

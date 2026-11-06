@@ -1,7 +1,7 @@
 import Foundation
 
-struct DiffLine: Hashable, Identifiable {
-    enum Kind: Hashable { case unchanged, added, removed }
+struct DiffLine: Hashable, Identifiable, Sendable {
+    enum Kind: Hashable, Sendable { case unchanged, added, removed }
     let id = UUID()
     let kind: Kind
     let text: String
@@ -17,7 +17,72 @@ struct DiffLine: Hashable, Identifiable {
     }
 }
 
-struct DiffEngine {
+struct DiffInput: Hashable, Sendable {
+    let old: String
+    let new: String
+}
+
+struct DiffRowPair: Sendable {
+    let left: DiffLine?
+    let right: DiffLine?
+}
+
+struct DiffEngine: Sendable {
+    // Bound both synchronous summary work and the detailed LCS allocation.
+    // Large rewritten middles are shown as a replacement block; matching
+    // heads/tails are still preserved and neither document loses any lines.
+    private static let maximumDetailedCells = 250_000
+
+    private func exceedsDetailedBudget(_ rows: Int, _ columns: Int) -> Bool {
+        columns > 0 && rows > Self.maximumDetailedCells / columns
+    }
+
+    static func render(_ input: DiffInput) async throws -> [DiffLine] {
+        try Task.checkCancellation()
+        let task = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            let lines = DiffEngine().diff(old: input.old, new: input.new)
+            try Task.checkCancellation()
+            return lines
+        }
+        return try await withTaskCancellationHandler {
+            let lines = try await task.value
+            try Task.checkCancellation()
+            return lines
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    /// Pair an entire change block, regardless of the LCS tie-break order.
+    /// Indexing buffers avoids repeated removeFirst() array copies.
+    static func pairedRows(_ lines: [DiffLine]) -> [DiffRowPair] {
+        var rows: [DiffRowPair] = []
+        var removed: [DiffLine] = []
+        var added: [DiffLine] = []
+        func flush() {
+            for index in 0..<max(removed.count, added.count) {
+                rows.append(
+                    DiffRowPair(
+                        left: index < removed.count ? removed[index] : nil,
+                        right: index < added.count ? added[index] : nil))
+            }
+            removed.removeAll(keepingCapacity: true)
+            added.removeAll(keepingCapacity: true)
+        }
+        for line in lines {
+            switch line.kind {
+            case .removed: removed.append(line)
+            case .added: added.append(line)
+            case .unchanged:
+                flush()
+                rows.append(DiffRowPair(left: line, right: line))
+            }
+        }
+        flush()
+        return rows
+    }
+
     func diff(old: String, new: String) -> [DiffLine] {
         if old == new {
             return splitLines(old).map { DiffLine(kind: .unchanged, text: $0) }
@@ -80,6 +145,7 @@ struct DiffEngine {
     /// The detailed diff keeps its existing backtracking and tie-breaking order.
     private func commonLineCount(_ lhs: ArraySlice<String>, _ rhs: ArraySlice<String>) -> Int {
         guard !lhs.isEmpty, !rhs.isEmpty else { return 0 }
+        guard !exceedsDetailedBudget(lhs.count, rhs.count) else { return 0 }
         let columns = lhs.count <= rhs.count ? lhs : rhs
         let rows = lhs.count <= rhs.count ? rhs : lhs
         var lengths = Array(repeating: 0, count: columns.count + 1)
@@ -106,6 +172,10 @@ struct DiffEngine {
         let m = newLines.count
         if n == 0 { return newLines.map { DiffLine(kind: .added, text: $0) } }
         if m == 0 { return oldLines.map { DiffLine(kind: .removed, text: $0) } }
+        if exceedsDetailedBudget(n, m) {
+            return oldLines.map { DiffLine(kind: .removed, text: $0) }
+                + newLines.map { DiffLine(kind: .added, text: $0) }
+        }
 
         var table = Array(repeating: Array(repeating: 0, count: m + 1), count: n + 1)
         for i in 0..<n {

@@ -21,8 +21,13 @@ struct ScreenshotScanner {
     /// Root discovery samples the same images the main walk reads; remember
     /// their sizes for the duration of one scan instead of reopening them.
     private let sizeCache = ImageSizeCache()
+    private let hashFile: @Sendable (URL) throws -> String
 
-    func scan(url: URL) throws -> ScreenshotScan {
+    init(hashFile: (@Sendable (URL) throws -> String)? = nil) {
+        self.hashFile = hashFile ?? Self.fileHash
+    }
+
+    func scan(url: URL) async throws -> ScreenshotScan {
         let fm = FileManager.default
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else {
@@ -33,7 +38,7 @@ struct ScreenshotScanner {
         try Task.checkCancellation()
         let scanRoot = resolvedRoot.url
         let rootPath = scanRoot.standardizedFileURL.path
-        var found: [(asset: ScreenshotAsset, fileSize: Int?)] = []
+        var found: [(asset: ScreenshotAsset, fileSize: Int?, modified: Date?)] = []
         var skipped = 0
 
         func walk(_ folder: URL, depth: Int) throws {
@@ -66,7 +71,8 @@ struct ScreenshotScanner {
                             status: slot == nil ? .unsupportedSize : .ready,
                             contentHash: nil
                         ),
-                        entry.fileSize
+                        entry.fileSize,
+                        entry.modified
                     ))
             }
         }
@@ -77,7 +83,7 @@ struct ScreenshotScanner {
             throw ScreenshotScannerError.noImagesFound(url)
         }
 
-        let assets = try hashingAssets(found)
+        let assets = try await hashingAssets(found)
         return ScreenshotScan(
             inputRoot: url,
             root: scanRoot,
@@ -90,31 +96,59 @@ struct ScreenshotScanner {
     /// A content revision is needed for every image: thumbnail invalidation
     /// and safe restoration of AI assignments also depend on it, even when
     /// the image has no possible duplicate in this scan.
+    ///
+    /// Read every file through a bounded-concurrency map. Size and mtime alone
+    /// cannot prove unchanged contents: exports and copies can preserve both.
     private func hashingAssets(
-        _ found: [(asset: ScreenshotAsset, fileSize: Int?)]
-    ) throws -> [ScreenshotAsset] {
+        _ found: [(asset: ScreenshotAsset, fileSize: Int?, modified: Date?)]
+    ) async throws -> [ScreenshotAsset] {
+        enum HashOutcome: Sendable {
+            case hashed(String)
+            case unreadable(NSError)
+        }
+        let hashFile = self.hashFile
+        let outcomes = await mapConcurrently(found, maxConcurrent: 4) { entry -> HashOutcome in
+            do {
+                let hash = try hashFile(entry.asset.url)
+                return .hashed(hash)
+            } catch {
+                // Preserve the previous behavior: an unreadable file fails the
+                // scan with its original error instead of dropping the asset.
+                return .unreadable(error as NSError)
+            }
+        }
+        // A cancelled map returns only an input prefix. Never publish the
+        // untouched tail as screenshots with missing content revisions.
+        try Task.checkCancellation()
+        guard outcomes.count == found.count else { throw CancellationError() }
         var assets = found.map(\.asset)
-        for index in assets.indices {
-            try Task.checkCancellation()
-            let asset = assets[index]
-            assets[index] = ScreenshotAsset(
-                url: asset.url,
-                relativePath: asset.relativePath,
-                size: asset.size,
-                locale: asset.locale,
-                deviceSlot: asset.deviceSlot,
-                status: asset.status,
-                contentHash: try fileHash(at: asset.url)
-            )
+        for (index, outcome) in outcomes.enumerated() {
+            switch outcome {
+            case .hashed(let hash):
+                let asset = assets[index]
+                assets[index] = ScreenshotAsset(
+                    url: asset.url,
+                    relativePath: asset.relativePath,
+                    size: asset.size,
+                    locale: asset.locale,
+                    deviceSlot: asset.deviceSlot,
+                    status: asset.status,
+                    contentHash: hash
+                )
+            case .unreadable(let error):
+                throw error
+            }
         }
         return assets
     }
 
-    private static let listingKeys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey, .fileSizeKey]
+    private static let listingKeys: Set<URLResourceKey> = [
+        .isDirectoryKey, .isSymbolicLinkKey, .fileSizeKey, .contentModificationDateKey,
+    ]
 
     /// One directory listing with the type and size prefetched, instead of a
     /// separate `fileExists` call per entry.
-    private func entries(in folder: URL) -> [(url: URL, isDirectory: Bool, fileSize: Int?)] {
+    private func entries(in folder: URL) -> [(url: URL, isDirectory: Bool, fileSize: Int?, modified: Date?)] {
         let urls =
             (try? FileManager.default.contentsOfDirectory(
                 at: folder,
@@ -128,7 +162,7 @@ struct ScreenshotScanner {
                 var isDir: ObjCBool = false
                 isDirectory = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
             }
-            return (url, isDirectory, values?.fileSize)
+            return (url, isDirectory, values?.fileSize, values?.contentModificationDate)
         }
         .sorted { $0.url.path < $1.url.path }
     }
@@ -265,7 +299,7 @@ struct ScreenshotScanner {
         return ScreenshotPixelSize(width: width, height: height)
     }
 
-    private func fileHash(at url: URL) throws -> String {
+    private static func fileHash(at url: URL) throws -> String {
         let file = try FileHandle(forReadingFrom: url)
         defer { try? file.close() }
         var hasher = SHA256()

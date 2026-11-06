@@ -7,7 +7,7 @@ import AppKit
 
 @Suite("ScreenshotScanner")
 struct ScreenshotScannerTests {
-    @Test func scansLocaleFoldersAndClassifiesDeviceSlots() throws {
+    @Test func scansLocaleFoldersAndClassifiesDeviceSlots() async throws {
         let folder = try makeTempFolder()
         let english = folder.appending(path: "en-US")
         let chinese = folder.appending(path: "zh-Hans")
@@ -16,7 +16,7 @@ struct ScreenshotScannerTests {
         try writePNG(width: 1320, height: 2868, to: english.appending(path: "01-home.png"))
         try writePNG(width: 100, height: 100, to: chinese.appending(path: "bad-size.png"))
 
-        let scan = try ScreenshotScanner().scan(url: folder)
+        let scan = try await ScreenshotScanner().scan(url: folder)
 
         #expect(scan.assets.count == 2)
         #expect(scan.readyCount == 1)
@@ -25,31 +25,31 @@ struct ScreenshotScannerTests {
         #expect(scan.assets.first { $0.locale == "zh-Hans" }?.status == .unsupportedSize)
     }
 
-    @Test func localeFolderWinsOverLanguageLikeWordsInFileName() throws {
+    @Test func localeFolderWinsOverLanguageLikeWordsInFileName() async throws {
         let folder = try makeTempFolder()
         let english = folder.appending(path: "en-US")
         try FileManager.default.createDirectory(at: english, withIntermediateDirectories: true)
         try writePNG(width: 1320, height: 2868, to: english.appending(path: "iPhone 6.9 no-ads 01.png"))
 
-        let scan = try ScreenshotScanner().scan(url: folder)
+        let scan = try await ScreenshotScanner().scan(url: folder)
 
         #expect(scan.assets.first?.locale == "en-US")
     }
 
-    @Test func detectsTraditionalChineseBeforeGenericChineseLanguageToken() throws {
+    @Test func detectsTraditionalChineseBeforeGenericChineseLanguageToken() async throws {
         let folder = try makeTempFolder()
         let traditional = folder.appending(path: "zh-Hant/6.9inch")
         try FileManager.default.createDirectory(at: traditional, withIntermediateDirectories: true)
         try writePNG(width: 1320, height: 2868, to: traditional.appending(path: "zh-Hant_6.9inch_01.png"))
 
-        let scan = try ScreenshotScanner().scan(url: folder)
+        let scan = try await ScreenshotScanner().scan(url: folder)
 
         #expect(scan.assets.count == 1)
         #expect(scan.assets.first?.locale == "zh-Hant")
         #expect(scan.localeGroups.map(\.locale) == ["zh-Hant"])
     }
 
-    @Test func skipsProjectBundlesDuringRecursiveScan() throws {
+    @Test func skipsProjectBundlesDuringRecursiveScan() async throws {
         let folder = try makeTempFolder()
         let screenshots = folder.appending(path: "screenshots/en-US")
         let projectBundle = folder.appending(path: "Demo.xcodeproj/en-US")
@@ -58,13 +58,13 @@ struct ScreenshotScannerTests {
         try writePNG(width: 1320, height: 2868, to: screenshots.appending(path: "real.png"))
         try writePNG(width: 1320, height: 2868, to: projectBundle.appending(path: "ignored.png"))
 
-        let scan = try ScreenshotScanner().scan(url: folder)
+        let scan = try await ScreenshotScanner().scan(url: folder)
 
         #expect(scan.assets.count == 1)
         #expect(scan.assets.first?.relativePath == "screenshots/en-US/real.png")
     }
 
-    @Test func projectRootDiscoversAppStoreScreenshotsFolder() throws {
+    @Test func projectRootDiscoversAppStoreScreenshotsFolder() async throws {
         let project = try makeTempFolder()
         let screenshots = project.appending(path: "AppStore/screenshots/en-US")
         let otherImages = project.appending(path: "output")
@@ -73,7 +73,7 @@ struct ScreenshotScannerTests {
         try writePNG(width: 1320, height: 2868, to: screenshots.appending(path: "01-home.png"))
         try writePNG(width: 100, height: 100, to: otherImages.appending(path: "scratch.png"))
 
-        let scan = try ScreenshotScanner().scan(url: project)
+        let scan = try await ScreenshotScanner().scan(url: project)
 
         #expect(scan.inputRoot == project)
         #expect(scan.root.path.hasSuffix("AppStore/screenshots"))
@@ -82,7 +82,7 @@ struct ScreenshotScannerTests {
         #expect(scan.assets.first?.relativePath == "en-US/01-home.png")
     }
 
-    @Test func projectRootPrefersUploadScreenshotsOverRawAndPreviewAssets() throws {
+    @Test func projectRootPrefersUploadScreenshotsOverRawAndPreviewAssets() async throws {
         let project = try makeTempFolder()
         let screenshotsRoot = project.appending(path: "AppStoreAssets/screenshots")
         let raw = screenshotsRoot.appending(path: "raw")
@@ -95,7 +95,7 @@ struct ScreenshotScannerTests {
         try writePNG(width: 1242, height: 2688, to: final.appending(path: "01-home.png"))
         try writePNG(width: 1242, height: 2688, to: upload.appending(path: "01-home.png"))
 
-        let scan = try ScreenshotScanner().scan(url: project)
+        let scan = try await ScreenshotScanner().scan(url: project)
 
         #expect(scan.root.path.hasSuffix("AppStoreAssets/screenshots/upload"))
         #expect(scan.assets.count == 1)
@@ -103,7 +103,7 @@ struct ScreenshotScannerTests {
         #expect(scan.assets.first?.relativePath == "iphone-6.5/01-home.png")
     }
 
-    @Test func allFilesAreHashedForDuplicateDetectionAndContentRevisions() throws {
+    @Test func allFilesAreHashedForDuplicateDetectionAndContentRevisions() async throws {
         let folder = try makeTempFolder()
         let english = folder.appending(path: "en-US")
         try FileManager.default.createDirectory(at: english, withIntermediateDirectories: true)
@@ -111,7 +111,7 @@ struct ScreenshotScannerTests {
         try writePNG(width: 1320, height: 2868, to: english.appending(path: "02-copy.png"))
         try writePNG(width: 1242, height: 2688, to: english.appending(path: "03-other-size.png"))
 
-        let scan = try ScreenshotScanner().scan(url: folder)
+        let scan = try await ScreenshotScanner().scan(url: folder)
         let hashes = Dictionary(uniqueKeysWithValues: scan.assets.map { ($0.url.lastPathComponent, $0.contentHash) })
 
         #expect(hashes["01-home.png"] ?? nil != nil)
@@ -128,14 +128,14 @@ struct ScreenshotScannerTests {
 
         let task = Task.detached {
             withUnsafeCurrentTask { $0?.cancel() }
-            return try ScreenshotScanner().scan(url: folder)
+            return try await ScreenshotScanner().scan(url: folder)
         }
         await #expect(throws: CancellationError.self) {
             _ = try await task.value
         }
     }
 
-    @Test func reportsMissingUnsupportedAndDuplicateIssues() throws {
+    @Test func reportsMissingUnsupportedAndDuplicateIssues() async throws {
         let folder = try makeTempFolder()
         let english = folder.appending(path: "en-US")
         let chinese = folder.appending(path: "zh-Hans")
@@ -145,7 +145,7 @@ struct ScreenshotScannerTests {
         try writePNG(width: 1320, height: 2868, to: english.appending(path: "02-home-copy.png"))
         try writePNG(width: 100, height: 100, to: chinese.appending(path: "bad-size.png"))
 
-        let scan = try ScreenshotScanner().scan(url: folder)
+        let scan = try await ScreenshotScanner().scan(url: folder)
         let issues = scan.issues(expectedSlots: [.iPhone65, .iPad13])
 
         #expect(issues.contains { $0.title == expectedLocalized("Missing required screenshot size") })
@@ -154,7 +154,7 @@ struct ScreenshotScannerTests {
         #expect(issues.filter { $0.severity == .error }.count >= 2)
     }
 
-    @Test func iphoneRequirementAcceptsEitherSixNineOrSixFive() throws {
+    @Test func iphoneRequirementAcceptsEitherSixNineOrSixFive() async throws {
         let folder = try makeTempFolder()
         let english = folder.appending(path: "en-US")
         let chinese = folder.appending(path: "zh-Hans")
@@ -163,7 +163,7 @@ struct ScreenshotScannerTests {
         try writePNG(width: 1320, height: 2868, to: english.appending(path: "iphone-69.png"))
         try writePNG(width: 1242, height: 2688, to: chinese.appending(path: "iphone-65.png"))
 
-        let scan = try ScreenshotScanner().scan(url: folder)
+        let scan = try await ScreenshotScanner().scan(url: folder)
         let requirement = ScreenshotSlotRequirement.oneOf([.iPhone69, .iPhone65])
 
         #expect(scan.missingRequirements(for: "en-US", requiredGroups: [requirement]).isEmpty)
@@ -262,11 +262,11 @@ struct ScreenshotScannerTests {
         #expect(detection.supportsIPad == false)
     }
 
-    @Test func unassignedScreenshotsDoNotCreateMissingSlotErrors() throws {
+    @Test func unassignedScreenshotsDoNotCreateMissingSlotErrors() async throws {
         let folder = try makeTempFolder()
         try writePNG(width: 1320, height: 2868, to: folder.appending(path: "01-home.png"))
 
-        let scan = try ScreenshotScanner().scan(url: folder)
+        let scan = try await ScreenshotScanner().scan(url: folder)
         let group = try #require(scan.localeGroups.first)
         let issues = scan.issues(expectedSlots: [.iPhone65, .iPad13])
 

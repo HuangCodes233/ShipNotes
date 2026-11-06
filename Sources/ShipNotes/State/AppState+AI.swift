@@ -40,6 +40,26 @@ extension AppState {
         return stored.isEmpty ? provider.defaultModel(for: role) : stored
     }
 
+    func aiAPIFormat(for provider: AIProvider, role: AIProfileRole = .text) -> OpenAIAPIFormat {
+        guard provider == .openai,
+            let raw = defaults.string(forKey: provider.apiFormatDefaultsKey(for: role)),
+            let format = OpenAIAPIFormat(rawValue: raw)
+        else { return .chatCompletions }
+        return format
+    }
+
+    func hasUnsavedAIProfileChanges(
+        provider: AIProvider, baseURL: String, model: String, apiFormat: OpenAIAPIFormat,
+        apiKeyInput: String, role: AIProfileRole
+    ) -> Bool {
+        let activeProvider = role == .text ? selectedAIProvider : selectedVisionAIProvider
+        return provider != activeProvider
+            || !apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || baseURL.trimmingCharacters(in: .whitespacesAndNewlines) != storedAIBaseURL(for: provider, role: role)
+            || model.trimmingCharacters(in: .whitespacesAndNewlines) != storedAIModel(for: provider, role: role)
+            || (provider == .openai && apiFormat != aiAPIFormat(for: provider, role: role))
+    }
+
     /// The raw stored base-URL string (empty if the user hasn't overridden the
     /// default). Used by SettingsView to show what the user typed, not the
     /// resolved value.
@@ -54,50 +74,20 @@ extension AppState {
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
-    func reloadAIServiceFromKeychain(allowsAuthenticationUI: Bool = true) {
-        for provider in AIProvider.allCases where provider != .none {
-            let key =
-                try?
-                (allowsAuthenticationUI
-                ? aiKeychainStore.load(for: provider)
-                : aiKeychainStore.loadWithoutPrompt(for: provider))
-            if let key, !key.isEmpty {
-                selectedAIProvider = provider
-                aiService = makeAIService(for: provider, cachedKey: key)
-                return
-            }
-        }
-        selectedAIProvider = .none
-        aiService = UnconfiguredAIService()
+    /// Keychain IO runs detached: a Keychain round-trip (which may prompt for
+    /// authorization) must not block the main actor in a Settings interaction.
+    @discardableResult
+    func reloadAIServiceFromKeychain(
+        allowsAuthenticationUI: Bool = true, preferredProvider: AIProvider? = nil
+    ) async -> Bool {
+        await reloadAIConfiguration(
+            role: .text, allowsAuthenticationUI: allowsAuthenticationUI,
+            preferredProvider: preferredProvider ?? selectedAIProvider)
     }
 
     func reloadAIServiceFromKeychainInBackground(allowsAuthenticationUI: Bool) async {
-        let providerBeforeLoad = selectedAIProvider
-        let store = aiKeychainStore
-        let candidate = await Task.detached(priority: .utility) { () -> (AIProvider, String)? in
-            for provider in AIProvider.allCases where provider != .none {
-                let key =
-                    try?
-                    (allowsAuthenticationUI
-                    ? store.load(for: provider)
-                    : store.loadWithoutPrompt(for: provider))
-                if let key, !key.isEmpty {
-                    return (provider, key)
-                }
-            }
-            return nil
-        }.value
-
-        guard selectedAIProvider == providerBeforeLoad else {
-            return
-        }
-        if let (provider, key) = candidate {
-            selectedAIProvider = provider
-            aiService = makeAIService(for: provider, cachedKey: key)
-        } else {
-            selectedAIProvider = .none
-            aiService = UnconfiguredAIService()
-        }
+        guard !isSavingAIConfiguration else { return }
+        _ = await reloadAIServiceFromKeychain(allowsAuthenticationUI: allowsAuthenticationUI)
     }
 
     func makeAIService(for provider: AIProvider, cachedKey: String?) -> any AIService {
@@ -116,6 +106,7 @@ extension AppState {
                 keychainStore: aiKeychainStore,
                 baseURL: baseURL,
                 model: model,
+                apiFormat: aiAPIFormat(for: provider),
                 cachedKey: cachedKey
             )
         case .none:
@@ -123,26 +114,15 @@ extension AppState {
         }
     }
 
-    func saveAIKey(_ apiKey: String, for provider: AIProvider) {
-        guard provider != .none else { return }
-        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            handleError(AIServiceError.missingAPIKey)
-            return
-        }
-        do {
-            try aiKeychainStore.save(trimmed, for: provider)
-            // Construct the service directly with the key in hand — don't rely
-            // on an immediate Keychain re-read (flaky on ad-hoc-signed runs).
-            selectedAIProvider = provider
-            aiService = makeAIService(for: provider, cachedKey: trimmed)
-            lastError = nil
-        } catch {
-            handleError(error)
-        }
+    @discardableResult
+    func saveAIKey(_ apiKey: String, for provider: AIProvider) async -> Bool {
+        await saveAIConfigurationKey(apiKey, for: provider, role: .text)
     }
 
-    func saveAIEndpointConfig(baseURL: String, model: String, for provider: AIProvider, role: AIProfileRole = .text) {
+    func saveAIEndpointConfig(
+        baseURL: String, model: String, apiFormat: OpenAIAPIFormat? = nil,
+        for provider: AIProvider, role: AIProfileRole = .text
+    ) {
         guard provider != .none else { return }
         let trimmedURL = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -156,64 +136,68 @@ extension AppState {
         } else {
             defaults.set(trimmedModel, forKey: provider.modelDefaultsKey(for: role))
         }
+        if provider == .openai, let apiFormat {
+            defaults.set(apiFormat.rawValue, forKey: provider.apiFormatDefaultsKey(for: role))
+        }
     }
 
-    func removeAIKey(for provider: AIProvider) {
+    /// Settings saves endpoint choices and credentials as one applied profile.
+    /// Endpoint choices commit only after the matching Keychain operation
+    /// succeeds, so stale/failed saves never become another save's baseline.
+    @discardableResult
+    func saveAIProfileConfiguration(
+        baseURL: String, model: String, apiFormat: OpenAIAPIFormat,
+        apiKeyInput: String, for provider: AIProvider, role: AIProfileRole
+    ) async -> Bool {
+        guard provider != .none, role != .vision || provider.supportsVisionInput else { return false }
+        let requestID = beginAIConfigurationRequest(role: role)
+        defer { endAIConfigurationRequest(requestID, role: role) }
         do {
-            try aiKeychainStore.delete(for: provider)
-            reloadAIServiceFromKeychain()
-            lastError = nil
+            let key = apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+            let configuration: StoredAIConfiguration?
+            if key.isEmpty {
+                let operation = aiConfigurationPersistence.load(
+                    role: role, preferredProvider: provider, allowsAuthenticationUI: true)
+                configuration = try await operation.value
+            } else {
+                let operation = aiConfigurationPersistence.save(key, provider: provider, role: role)
+                try await operation.value
+                configuration = StoredAIConfiguration(provider: provider, key: key)
+            }
+            guard ownsAIConfigurationRequest(requestID, role: role) else { return false }
+            guard !Task.isCancelled else { return false }
+            guard configuration?.provider == provider else {
+                handleError(AIServiceError.missingAPIKey)
+                return false
+            }
+            saveAIEndpointConfig(baseURL: baseURL, model: model, apiFormat: apiFormat, for: provider, role: role)
+            applyAIConfiguration(configuration, role: role)
+            clearLastErrorPreservingWorkspaceDraftError()
+            return true
         } catch {
-            handleError(error)
+            guard ownsAIConfigurationRequest(requestID, role: role) else { return false }
+            if !Task.isCancelled { handleError(error) }
+            return false
         }
     }
 
-    func reloadVisionAIServiceFromKeychain(allowsAuthenticationUI: Bool = true) {
-        for provider in AIProvider.allCases where provider.supportsVisionInput {
-            let key =
-                try?
-                (allowsAuthenticationUI
-                ? aiKeychainStore.load(for: provider, role: .vision)
-                : aiKeychainStore.loadWithoutPrompt(for: provider, role: .vision))
-            if let key, !key.isEmpty {
-                selectedVisionAIProvider = provider
-                defaults.set(provider.rawValue, forKey: SettingsKey.aiVisionProvider)
-                visionAIService = makeVisionAIService(for: provider, cachedKey: key)
-                return
-            }
-        }
-        selectedVisionAIProvider = Self.loadStoredVisionAIProvider(defaults: defaults)
-        visionAIService = UnconfiguredScreenshotVisionAIService()
+    @discardableResult
+    func removeAIKey(for provider: AIProvider) async -> Bool {
+        await removeAIConfigurationKey(for: provider, role: .text)
+    }
+
+    @discardableResult
+    func reloadVisionAIServiceFromKeychain(
+        allowsAuthenticationUI: Bool = true, preferredProvider: AIProvider? = nil
+    ) async -> Bool {
+        await reloadAIConfiguration(
+            role: .vision, allowsAuthenticationUI: allowsAuthenticationUI,
+            preferredProvider: preferredProvider ?? selectedVisionAIProvider)
     }
 
     func reloadVisionAIServiceFromKeychainInBackground(allowsAuthenticationUI: Bool) async {
-        let providerBeforeLoad = selectedVisionAIProvider
-        let store = aiKeychainStore
-        let candidate = await Task.detached(priority: .utility) { () -> (AIProvider, String)? in
-            for provider in AIProvider.allCases where provider.supportsVisionInput {
-                let key =
-                    try?
-                    (allowsAuthenticationUI
-                    ? store.load(for: provider, role: .vision)
-                    : store.loadWithoutPrompt(for: provider, role: .vision))
-                if let key, !key.isEmpty {
-                    return (provider, key)
-                }
-            }
-            return nil
-        }.value
-
-        guard selectedVisionAIProvider == providerBeforeLoad else {
-            return
-        }
-        if let (provider, key) = candidate {
-            selectedVisionAIProvider = provider
-            defaults.set(provider.rawValue, forKey: SettingsKey.aiVisionProvider)
-            visionAIService = makeVisionAIService(for: provider, cachedKey: key)
-        } else {
-            selectedVisionAIProvider = Self.loadStoredVisionAIProvider(defaults: defaults)
-            visionAIService = UnconfiguredScreenshotVisionAIService()
-        }
+        guard !isSavingVisionAIConfiguration else { return }
+        _ = await reloadVisionAIServiceFromKeychain(allowsAuthenticationUI: allowsAuthenticationUI)
     }
 
     func makeVisionAIService(for provider: AIProvider, cachedKey: String?) -> any ScreenshotVisionAIService {
@@ -232,6 +216,7 @@ extension AppState {
                 keychainStore: aiKeychainStore,
                 baseURL: baseURL,
                 model: model,
+                apiFormat: aiAPIFormat(for: provider, role: .vision),
                 cachedKey: cachedKey
             )
         case .none:
@@ -239,51 +224,162 @@ extension AppState {
         }
     }
 
-    func saveVisionAIKey(_ apiKey: String, for provider: AIProvider) {
-        guard provider.supportsVisionInput else { return }
-        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            handleError(AIServiceError.missingAPIKey)
-            return
-        }
-        do {
-            try aiKeychainStore.save(trimmed, for: provider, role: .vision)
-            selectedVisionAIProvider = provider
-            defaults.set(provider.rawValue, forKey: SettingsKey.aiVisionProvider)
-            visionAIService = makeVisionAIService(for: provider, cachedKey: trimmed)
-            lastError = nil
-        } catch {
-            handleError(error)
-        }
+    @discardableResult
+    func saveVisionAIKey(_ apiKey: String, for provider: AIProvider) async -> Bool {
+        await saveAIConfigurationKey(apiKey, for: provider, role: .vision)
     }
 
-    func removeVisionAIKey(for provider: AIProvider) {
-        do {
-            try aiKeychainStore.delete(for: provider, role: .vision)
-            if selectedVisionAIProvider == provider {
+    @discardableResult
+    func removeVisionAIKey(for provider: AIProvider) async -> Bool {
+        await removeAIConfigurationKey(for: provider, role: .vision)
+    }
+
+    private func beginAIConfigurationRequest(role: AIProfileRole) -> UInt64 {
+        aiConfigurationRequestSequence &+= 1
+        switch role {
+        case .text:
+            aiTextConfigurationRequestID = aiConfigurationRequestSequence
+            isSavingAIConfiguration = true
+        case .vision:
+            aiVisionConfigurationRequestID = aiConfigurationRequestSequence
+            isSavingVisionAIConfiguration = true
+        }
+        return aiConfigurationRequestSequence
+    }
+
+    private func ownsAIConfigurationRequest(_ requestID: UInt64, role: AIProfileRole) -> Bool {
+        requestID == (role == .text ? aiTextConfigurationRequestID : aiVisionConfigurationRequestID)
+    }
+
+    private func endAIConfigurationRequest(_ requestID: UInt64, role: AIProfileRole) {
+        guard ownsAIConfigurationRequest(requestID, role: role) else { return }
+        if role == .text { isSavingAIConfiguration = false } else { isSavingVisionAIConfiguration = false }
+    }
+
+    private func applyAIConfiguration(_ configuration: StoredAIConfiguration?, role: AIProfileRole) {
+        switch role {
+        case .text:
+            selectedAIProvider = configuration?.provider ?? .none
+            aiService =
+                configuration.map { makeAIService(for: $0.provider, cachedKey: $0.key) }
+                ?? UnconfiguredAIService()
+        case .vision:
+            if let configuration {
+                selectedVisionAIProvider = configuration.provider
+                defaults.set(configuration.provider.rawValue, forKey: SettingsKey.aiVisionProvider)
+                visionAIService = makeVisionAIService(for: configuration.provider, cachedKey: configuration.key)
+            } else {
+                selectedVisionAIProvider = Self.loadStoredVisionAIProvider(defaults: defaults)
                 visionAIService = UnconfiguredScreenshotVisionAIService()
             }
-            lastError = nil
-        } catch {
-            handleError(error)
         }
     }
 
-    func testAIConnection() async {
-        guard aiService.isConfigured else {
+    private func reloadAIConfiguration(
+        role: AIProfileRole, allowsAuthenticationUI: Bool, preferredProvider: AIProvider?
+    ) async -> Bool {
+        let requestID = beginAIConfigurationRequest(role: role)
+        defer { endAIConfigurationRequest(requestID, role: role) }
+        // Enqueue before suspending so this read cannot overtake an earlier
+        // write, or publish its cached key after a newer save/removal.
+        let operation = aiConfigurationPersistence.load(
+            role: role, preferredProvider: preferredProvider, allowsAuthenticationUI: allowsAuthenticationUI)
+        do {
+            let configuration = try await operation.value
+            guard !Task.isCancelled, ownsAIConfigurationRequest(requestID, role: role) else { return false }
+            applyAIConfiguration(configuration, role: role)
+            return configuration != nil
+        } catch {
+            guard !Task.isCancelled, ownsAIConfigurationRequest(requestID, role: role) else { return false }
+            handleError(error)
+            return false
+        }
+    }
+
+    private func saveAIConfigurationKey(_ apiKey: String, for provider: AIProvider, role: AIProfileRole) async -> Bool {
+        guard provider != .none, role != .vision || provider.supportsVisionInput else { return false }
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else {
+            handleError(AIServiceError.missingAPIKey)
+            return false
+        }
+        let requestID = beginAIConfigurationRequest(role: role)
+        defer { endAIConfigurationRequest(requestID, role: role) }
+        let operation = aiConfigurationPersistence.save(key, provider: provider, role: role)
+        do {
+            try await operation.value
+            guard !Task.isCancelled, ownsAIConfigurationRequest(requestID, role: role) else { return false }
+            applyAIConfiguration(StoredAIConfiguration(provider: provider, key: key), role: role)
+            clearLastErrorPreservingWorkspaceDraftError()
+            return true
+        } catch {
+            guard !Task.isCancelled, ownsAIConfigurationRequest(requestID, role: role) else { return false }
+            handleError(error)
+            return false
+        }
+    }
+
+    private func removeAIConfigurationKey(for provider: AIProvider, role: AIProfileRole) async -> Bool {
+        guard provider != .none else { return false }
+        let requestID = beginAIConfigurationRequest(role: role)
+        defer { endAIConfigurationRequest(requestID, role: role) }
+        let preferredProvider = role == .text ? selectedAIProvider : selectedVisionAIProvider
+        let operation = aiConfigurationPersistence.removeAndLoad(
+            provider: provider, role: role, preferredProvider: preferredProvider)
+        do {
+            let configuration = try await operation.value
+            guard !Task.isCancelled, ownsAIConfigurationRequest(requestID, role: role) else { return false }
+            applyAIConfiguration(configuration, role: role)
+            clearLastErrorPreservingWorkspaceDraftError()
+            return true
+        } catch {
+            guard !Task.isCancelled, ownsAIConfigurationRequest(requestID, role: role) else { return false }
+            handleError(error)
+            return false
+        }
+    }
+
+    @discardableResult
+    func testAIConnection() async -> Bool {
+        guard !isAIRunning, !isSavingAIConfiguration else { return false }
+        let service = aiService
+        guard service.isConfigured else {
             handleError(AIServiceError.notConfigured)
-            return
+            return false
         }
         isAIRunning = true
         defer { isAIRunning = false }
         do {
-            _ = try await aiService.translate(text: "Hello.", fromLocale: "en-US", toLocale: "ja", glossary: [:])
+            _ = try await service.translate(text: "Hello.", fromLocale: "en-US", toLocale: "ja", glossary: [:])
             bumpAICallCount()
             // Settings shows its own success message; `connectionStatus`
             // describes the App Store Connect connection.
-            lastError = nil
+            clearLastErrorPreservingWorkspaceDraftError()
+            return true
         } catch {
             handleError(error)
+            return false
+        }
+    }
+
+    @discardableResult
+    func testVisionAIConnection() async -> Bool {
+        guard !isAIRunning, !isSavingVisionAIConfiguration else { return false }
+        let service = visionAIService
+        guard service.isConfigured else {
+            handleError(AIServiceError.notConfigured)
+            return false
+        }
+        isAIRunning = true
+        defer { isAIRunning = false }
+        do {
+            try await service.testConnection()
+            bumpAICallCount()
+            clearLastErrorPreservingWorkspaceDraftError()
+            return true
+        } catch {
+            handleError(error)
+            return false
         }
     }
 

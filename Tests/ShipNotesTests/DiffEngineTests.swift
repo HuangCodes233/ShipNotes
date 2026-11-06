@@ -64,4 +64,52 @@ struct DiffEngineTests {
         #expect(summary.removed == 1)
         #expect(summary.unchanged == 4_999)
     }
+
+    @Test func singleReplacementPairsOldAndNewOnTheSameRow() {
+        let rows = DiffEngine.pairedRows(engine.diff(old: "old text", new: "new text"))
+        #expect(rows.count == 1)
+        #expect(rows.first?.left?.text == "old text")
+        #expect(rows.first?.right?.text == "new text")
+    }
+
+    @Test func unequalReplacementBlocksKeepContextAndBothDocuments() {
+        let old = "head\nold one\nold two\nold three\ntail"
+        let new = "head\nnew one\nnew two\ntail"
+        let rows = DiffEngine.pairedRows(engine.diff(old: old, new: new))
+        #expect(rows.count == 5)
+        #expect(rows.compactMap { $0.left?.text }.joined(separator: "\n") == old)
+        #expect(rows.compactMap { $0.right?.text }.joined(separator: "\n") == new)
+        #expect(rows[3].left?.text == "old three")
+        #expect(rows[3].right == nil)
+    }
+
+    @Test func pureAdditionsAndRemovalsLeaveTheOtherColumnEmpty() {
+        let added = DiffEngine.pairedRows(engine.diff(old: "", new: "one\ntwo"))
+        let removed = DiffEngine.pairedRows(engine.diff(old: "one\ntwo", new: ""))
+        #expect(added.allSatisfy { $0.left == nil && $0.right != nil })
+        #expect(removed.allSatisfy { $0.left != nil && $0.right == nil })
+    }
+
+    @Test func largeRewritePreservesEveryLineAndSummaryMatchesTheDisplayedBlocks() {
+        let old = (["head"] + (0..<5_000).map { "old \($0)" } + ["tail"]).joined(separator: "\n")
+        let new = (["head"] + (0..<5_000).map { "new \($0)" } + ["tail"]).joined(separator: "\n")
+        let lines = engine.diff(old: old, new: new)
+        #expect(lines.filter { $0.kind != .added }.map(\.text).joined(separator: "\n") == old)
+        #expect(lines.filter { $0.kind != .removed }.map(\.text).joined(separator: "\n") == new)
+        let summary = engine.summary(old: old, new: new)
+        #expect(summary.added == lines.count(where: { $0.kind == .added }))
+        #expect(summary.removed == lines.count(where: { $0.kind == .removed }))
+        #expect(summary.unchanged == 2)
+    }
+
+    @MainActor @Test func cancelledRenderDoesNotReturnAStaleResult() async {
+        let task = Task { try await DiffEngine.render(DiffInput(old: "old", new: "new")) }
+        task.cancel()
+        do {
+            _ = try await task.value
+            Issue.record("Cancelled rendering returned a result")
+        } catch {
+            #expect(error is CancellationError)
+        }
+    }
 }

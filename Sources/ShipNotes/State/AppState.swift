@@ -48,8 +48,25 @@ final class AppState {
     var remoteScreenshotCountsByLocale: [String: Int] = [:]
     var isLoadingRemoteScreenshotCounts: Bool = false
 
-    var localeNotes: [LocaleNote] = []
-    var storeCopyLocales: [StoreCopyLocale] = []
+    var localeNotes: [LocaleNote] = [] {
+        didSet {
+            if oldValue.map(\.locale) != localeNotes.map(\.locale)
+                || oldValue.map(\.localText) != localeNotes.map(\.localText)
+            {
+                workspaceContentRevision &+= 1
+            }
+        }
+    }
+    var storeCopyLocales: [StoreCopyLocale] = [] {
+        didSet {
+            if oldValue.map(\.locale) != storeCopyLocales.map(\.locale)
+                || oldValue.map(\.localMetadata) != storeCopyLocales.map(\.localMetadata)
+            {
+                workspaceContentRevision &+= 1
+            }
+        }
+    }
+    @ObservationIgnored var workspaceContentRevision: UInt64 = 0
     var selectedStoreCopyLocale: String?
     var storeCopySourceURL: URL?
     var storeCopySourceDescription: String?
@@ -67,6 +84,9 @@ final class AppState {
     var isLoadingBuilds: Bool = false
     var isLoadingVersionCreationContext: Bool = false
     var isSubmittingForReview: Bool = false
+    var isFinalizingReviewSubmission = false
+    @ObservationIgnored var reviewBlockedWorkspaceChange = false
+    var workspaceImportRequestsInFlight = 0
     var isUploadingScreenshots: Bool = false
     var isPreparingScreenshotReplacement: Bool = false
     var isScanningScreenshots: Bool = false
@@ -123,6 +143,12 @@ final class AppState {
 
     var selectedAIProvider: AIProvider = .none
     var selectedVisionAIProvider: AIProvider = .none
+    @ObservationIgnored lazy var aiConfigurationPersistence = AIConfigurationPersistence(store: aiKeychainStore)
+    @ObservationIgnored var aiConfigurationRequestSequence: UInt64 = 0
+    @ObservationIgnored var aiTextConfigurationRequestID: UInt64 = 0
+    @ObservationIgnored var aiVisionConfigurationRequestID: UInt64 = 0
+    var isSavingAIConfiguration = false
+    var isSavingVisionAIConfiguration = false
 
     @ObservationIgnored var hasBootstrappedForLaunch = false
     @ObservationIgnored var appStoreConnectionRequestID: UUID?
